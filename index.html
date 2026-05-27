@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EDSEV Secundaria | Expediente Digital de Salud Escolar</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRM2qxYiy0R0DX0tvT5yGltj1R4sLDUacN2Kw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    :root{
+      --vino:#9b0b4f;
+      --vino-oscuro:#72083a;
+      --vino-claro:#c94b83;
+      --gris:#e9eeee;
+      --gris2:#d9dfdf;
+      --crema:#fff8ed;
+      --blanco:#ffffff;
+      --texto:#2b2b2b;
+      --borde:#cfd6d6;
+      --alerta:#b00020;
+      --verde:#177245;
+      --sombra:0 14px 35px rgba(114,8,58,.18);
+    }
+
+    *{box-sizing:border-box;}
+
+    body{
+      margin:0;
+      font-family:Arial, Helvetica, sans-serif;
+      color:var(--texto);
+      background:linear-gradient(135deg,var(--crema),#fff,var(--gris));
+      min-height:100vh;
+    }
+
+    .app{
+      width:min(1050px,96vw);
+      margin:18px auto;
+      background:rgba(255,255,255,.96);
+      border-radius:22px;
+      box-shadow:var(--sombra);
+      overflow:hidden;
+      border:1px solid rgba(155,11,79,.18);
+    }
+
+    header{
+      background:linear-gradient(180deg,#f5f8f8,var(--blanco));
+      padding:16px 22px 10px;
+      border-bottom:7px solid var(--vino);
+    }
+
+    .logos{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      margin-bottom:8px;
+    }
+
+    .logos img{
+      object-fit:contain;
+      max-height:72px;
+      max-width:31%;
+      filter:drop-shadow(0 3px 2px rgba(0,0,0,.08));
+    }
+
+    .titulo{
+      text-align:center;
+      text-transform:uppercase;
+      letter-spacing:1.2px;
+      line-height:1.35;
+      font-weight:800;
+      color:#161616;
+    }
+
+    .titulo .principal{font-size:clamp(15px,2vw,20px);}
+    .titulo .sub{font-size:clamp(12px,1.7vw,16px); color:#222;}
+
+    .barra-progreso{
+      padding:14px 22px;
+      background:var(--crema);
+      display:grid;
+      gap:10px;
+      border-bottom:1px solid #eadfd5;
+    }
+
+    .estado{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      font-weight:800;
+      color:var(--vino-oscuro);
+    }
+
+    .progress-track{
+      width:100%;
+      height:12px;
+      background:#f0dce7;
+      border-radius:20px;
+      overflow:hidden;
+      border:1px solid rgba(155,11,79,.25);
+    }
+
+    .progress-fill{
+      height:100%;
+      width:10%;
+      background:linear-gradient(90deg,var(--vino),var(--vino-claro));
+      border-radius:20px;
+      transition:width .25s ease;
+    }
+
+    main{
+      padding:24px;
+      background:linear-gradient(180deg,#fff,#fffdf8);
+      min-height:610px;
+    }
+
+    .page{display:none; animation:aparecer .25s ease;}
+    .page.active{display:block;}
+
+    @keyframes aparecer{
+      from{opacity:0; transform:translateY(6px);}
+      to{opacity:1; transform:translateY(0);}
+    }
+
+    .section-title{
+      margin:0 0 16px;
+      color:white;
+      background:linear-gradient(90deg,var(--vino),var(--vino-oscuro));
+      border-radius:14px;
+      padding:12px 16px;
+      text-align:center;
+      text-transform:uppercase;
+      letter-spacing:1px;
+      box-shadow:0 8px 18px rgba(155,11,79,.16);
+    }
+
+    .intro{
+      margin:0 0 16px;
+      background:#f4f6f6;
+      border-left:6px solid var(--vino);
+      padding:12px 14px;
+      border-radius:12px;
+      line-height:1.45;
+      font-weight:600;
+    }
+
+    .grupo{
+      background:var(--gris);
+      border:1px solid var(--borde);
+      border-radius:18px;
+      padding:16px;
+      margin-bottom:16px;
+    }
+
+    .subtitulo{
+      margin:0 0 14px;
+      color:var(--vino);
+      text-align:center;
+      font-size:19px;
+      font-weight:800;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(12,1fr);
+      gap:12px;
+      align-items:end;
+    }
+
+    .campo{display:grid; gap:6px;}
+    .col-2{grid-column:span 2;}
+    .col-3{grid-column:span 3;}
+    .col-4{grid-column:span 4;}
+    .col-5{grid-column:span 5;}
+    .col-6{grid-column:span 6;}
+    .col-7{grid-column:span 7;}
+    .col-8{grid-column:span 8;}
+    .col-12{grid-column:span 12;}
+
+    label{
+      font-size:14px;
+      font-weight:800;
+      color:#333;
+    }
+
+    .req::after{content:" *"; color:var(--alerta); font-weight:900;}
+
+    input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="date"], select, textarea{
+      width:100%;
+      min-height:42px;
+      border:1px solid #aeb9b9;
+      border-radius:10px;
+      padding:9px 10px;
+      background:white;
+      font-size:15px;
+      outline:none;
+    }
+
+    textarea{min-height:90px; resize:vertical;}
+
+    input:focus, select:focus, textarea:focus{
+      border-color:var(--vino);
+      box-shadow:0 0 0 3px rgba(155,11,79,.13);
+    }
+
+    input[readonly]{
+      background:#f7f7f7;
+      color:#333;
+      border-color:#c9c9c9;
+      cursor:not-allowed;
+      font-weight:700;
+    }
+
+    input[type="text"], textarea{
+      text-transform:uppercase;
+    }
+
+    input[disabled]{
+      background:#ededed;
+      color:#777;
+      cursor:not-allowed;
+    }
+
+    .ayuda{
+      margin-top:8px;
+      background:#fff;
+      border:1px solid #d7dddd;
+      border-left:5px solid var(--vino);
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:14px;
+      line-height:1.45;
+      color:#454545;
+      font-weight:700;
+    }
+
+    .checks{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px 18px;
+      align-items:center;
+      padding-top:4px;
+    }
+
+    .check{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      font-size:14px;
+      font-weight:700;
+      min-height:28px;
+    }
+
+    .check input{width:17px; height:17px; accent-color:var(--vino);}
+
+    .micro-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:8px 18px;
+      justify-items:start;
+      background:white;
+      border:1px solid #d7dddd;
+      border-radius:12px;
+      padding:10px;
+    }
+
+    .dos-columnas{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+    .lista-enfermedades{display:grid; grid-template-columns:1fr 1fr; gap:8px 28px;}
+
+    .enfermedad{
+      display:grid;
+      grid-template-columns:1fr auto auto;
+      gap:8px;
+      align-items:center;
+      padding:5px 0;
+      border-bottom:1px dashed #cfd6d6;
+      font-size:14px;
+      font-weight:700;
+    }
+
+    .nota{
+      background:#fff;
+      border:1px dashed var(--vino-claro);
+      color:#555;
+      border-radius:16px;
+      padding:12px;
+      margin-top:8px;
+      font-weight:700;
+      line-height:1.45;
+    }
+
+    .aviso-validacion{
+      display:none;
+      margin:0 0 14px;
+      border-radius:12px;
+      padding:12px 14px;
+      border:1px solid #f2b8c4;
+      background:#fff4f6;
+      color:var(--alerta);
+      font-weight:800;
+    }
+
+    .acciones{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      gap:10px;
+      padding-top:8px;
+    }
+
+    .btn{
+      border:none;
+      border-radius:14px;
+      padding:12px 18px;
+      cursor:pointer;
+      font-weight:900;
+      letter-spacing:.3px;
+      transition:.2s ease;
+      min-width:150px;
+    }
+
+    .btn:hover{transform:translateY(-1px); filter:brightness(1.03);}
+    .btn:disabled{opacity:.55; cursor:not-allowed; transform:none;}
+    .btn-vino{background:linear-gradient(135deg,var(--vino),var(--vino-oscuro)); color:white;}
+    .btn-claro{background:#eee; color:#333; border:1px solid #ccc;}
+    .btn-verde{background:linear-gradient(135deg,var(--verde),#0b5230); color:white;}
+
+    footer{
+      text-align:center;
+      padding:12px 18px 18px;
+      font-size:13px;
+      color:#555;
+      background:#fffdf8;
+      line-height:1.45;
+    }
+
+    @media (max-width:820px){
+      .logos img{max-height:54px;}
+      main, header, .barra-progreso{padding-left:14px; padding-right:14px;}
+      .grid{grid-template-columns:repeat(6,1fr);}
+      .col-2,.col-3{grid-column:span 3;}
+      .col-4,.col-5,.col-6,.col-7,.col-8{grid-column:span 6;}
+      .dos-columnas,.lista-enfermedades{grid-template-columns:1fr;}
+      .acciones{justify-content:center;}
+    }
+
+    @media (max-width:520px){
+      .app{width:100%; margin:0; border-radius:0;}
+      .grid{grid-template-columns:1fr;}
+      .col-2,.col-3,.col-4,.col-5,.col-6,.col-7,.col-8,.col-12{grid-column:span 1;}
+      .micro-grid{grid-template-columns:1fr;}
+      .logos{gap:6px;}
+      .logos img{max-height:42px;}
+      .btn{width:100%;}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logos">
+        <img src="https://bunny-wp-pullzone-igwhdjali4.b-cdn.net/wp-content/uploads/2019/09/Escudo-heraldico-01-e1569435071390.png" alt="Escudo Gobierno del Estado de Veracruz" />
+        <img src="https://empleadodigital.sev.gob.mx/assets/icon/sev-logo.png" alt="Secretaría de Educación de Veracruz" />
+        <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhvTlQsqPV_9F2hUQbLB6H3Q_NC9F0as-Y4K52j7P8ODmJBP0Ym2NdMnsNYNKYsJ8lO4DHcqfcTrsL_l7b_pxgy2AZoPpO9dce8Tumm1asFfAbik953mwQxVT8vAJ3uXnKwFdeRSuQpXPz8l2ulSk2tJzw9NlW_xW_1_WiC_2fDA93FSIa-1uZXvWJQlg/s1248/edsev0.jpg" alt="EDSEV" />
+      </div>
+      <div class="titulo">
+        <div class="principal">Secretaría de Educación de Veracruz</div>
+        <div class="sub">Expediente Digital de Salud Escolar Veracruz</div>
+        <div class="sub">Nivel Secundaria · Ciclo Escolar 2025 - 2026</div>
+      </div>
+    </header>
+
+    <section class="barra-progreso">
+      <div class="estado">
+        <span id="nombreSeccion">Sección 1: Identificación de la alumna o alumno</span>
+        <span id="contador">1 / 9</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </section>
+
+    <main>
+      <form id="formEDSEV" novalidate>
+        <div class="aviso-validacion" id="avisoValidacion"></div>
+
+        <section class="page active" data-title="Identificación de la alumna o alumno">
+          <h2 class="section-title">Identificación de la alumna o alumno</h2>
+          <p class="intro">Capture los datos generales de la alumna o alumno. Todos los campos de esta sección son obligatorios.</p>
+          <div class="grupo">
+            <div class="grid">
+              <div class="campo col-4"><label class="req">Primer apellido</label><input type="text" name="primer_apellido" required autocomplete="off" /></div>
+              <div class="campo col-4"><label class="req">Segundo apellido</label><input type="text" name="segundo_apellido" required autocomplete="off" /></div>
+              <div class="campo col-4"><label class="req">Nombre(s)</label><input type="text" name="nombres_alumno" required autocomplete="off" /></div>
+              <div class="campo col-6"><label class="req">CURP</label><input type="text" name="curp" maxlength="18" minlength="18" pattern="[A-Z0-9]{18}" required autocomplete="off" placeholder="18 caracteres" /></div>
+              <div class="campo col-3"><label class="req">Sexo</label><select name="sexo" required><option value="">Seleccione</option><option>Masculino</option><option>Femenino</option></select></div>
+              <div class="campo col-3"><label class="req">Fecha de nacimiento</label><input type="date" name="fecha_nacimiento" required /></div>
+              <div class="campo col-3"><label class="req">Edad</label><select name="edad" required><option value="">Seleccione</option><option>11</option><option>12</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option></select></div>
+              <div class="campo col-3"><label class="req">Grado</label><select name="grado" required><option value="">Seleccione</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
+              <div class="campo col-3"><label class="req">Grupo</label><select name="grupo" required><option value="">Seleccione</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option><option>H</option><option>I</option><option>J</option><option>K</option><option>L</option></select></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Datos de la escuela">
+          <h2 class="section-title">Datos de la escuela</h2>
+          <p class="intro">Esta información queda llena de forma automática y no puede ser modificada por el usuario. El turno se determina con base en el grupo seleccionado: A-F matutino y G-L vespertino.</p>
+          <div class="grupo">
+            <div class="grid">
+              <div class="campo col-5"><label>Clave de la escuela</label><input type="text" name="clave_escuela" value="30DES0010R" readonly /></div>
+              <div class="campo col-7"><label>Nombre de la escuela</label><input type="text" name="nombre_escuela" value="Jose Maria Mata" readonly /></div>
+              <div class="campo col-4"><label>Turno</label><input type="text" name="turno" id="turno" value="" readonly placeholder="Se completa al elegir grupo" /></div>
+              <div class="campo col-4"><label>Entidad federativa</label><input type="text" name="entidad" value="Veracruz" readonly /></div>
+              <div class="campo col-4"><label>Municipio</label><input type="text" name="municipio" value="Martinez de la Torre" readonly /></div>
+              <div class="campo col-12"><label>Localidad</label><input type="text" name="localidad" value="Martinez de la Torre" readonly /></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Datos del padre, madre o tutor">
+          <h2 class="section-title">Datos del padre, madre o tutor</h2>
+          <p class="intro">Los datos del tutor son obligatorios, excepto teléfono/celular y correo electrónico. Si se captura teléfono, debe contener exactamente 10 números.</p>
+          <div class="grupo">
+            <div class="grid">
+              <div class="campo col-4"><label class="req">Primer apellido</label><input type="text" name="tutor_primer_apellido" required autocomplete="off" /></div>
+              <div class="campo col-4"><label class="req">Segundo apellido</label><input type="text" name="tutor_segundo_apellido" required autocomplete="off" /></div>
+              <div class="campo col-4"><label class="req">Nombre(s)</label><input type="text" name="tutor_nombres" required autocomplete="off" /></div>
+              <div class="campo col-4"><label class="req">Relación con el menor</label><select name="relacion_tutor" required><option value="">Seleccione</option><option>Madre</option><option>Padre</option><option>Tutor</option><option>Otra</option></select></div>
+              <div class="campo col-4"><label>Teléfono/celular</label><input type="tel" name="telefono_tutor" pattern="[0-9]{10}" maxlength="10" inputmode="numeric" placeholder="10 números" /></div>
+              <div class="campo col-4"><label>Correo electrónico</label><input type="email" name="correo_tutor" placeholder="ejemplo@correo.com" /></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Datos físicos y agudeza visual">
+          <h2 class="section-title">Datos de la alumna o alumno</h2>
+          <p class="intro">Todos los campos de esta sección son obligatorios. Los valores tienen rangos adecuados para estudiantes de 11 a 17 años.</p>
+          <div class="grupo">
+            <h3 class="subtitulo">Peso y talla</h3>
+            <div class="grid">
+              <div class="campo col-3"><label class="req">Peso (kg)</label><input type="number" name="peso" min="20" max="130" step="0.1" required placeholder="20 a 130" /></div>
+              <div class="campo col-3"><label class="req">Talla (cm)</label><input type="number" name="talla" min="120" max="200" step="0.1" required placeholder="120 a 200" /></div>
+              <div class="campo col-3"><label class="req">Medida de cintura (cm)</label><input type="number" name="cintura" min="45" max="130" step="0.1" required placeholder="45 a 130" /></div>
+              <div class="campo col-3"><label class="req">Medida de cadera (cm)</label><input type="number" name="cadera" min="50" max="140" step="0.1" required placeholder="50 a 140" /></div>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo">Agudeza visual</h3>
+            <div class="grid">
+              <div class="campo col-4"><label class="req">¿Usa lentes?</label><div class="checks"><label class="check"><input type="radio" name="usa_lentes" value="No" required /> No</label><label class="check"><input type="radio" name="usa_lentes" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-4"><label class="req">Ojo izquierdo</label><div class="micro-grid"><label class="check"><input type="radio" name="ojo_izquierdo" value="8" required /> Excelente = 8</label><label class="check"><input type="radio" name="ojo_izquierdo" value="7" /> Buena = 7</label><label class="check"><input type="radio" name="ojo_izquierdo" value="6" /> Regular = 6</label><label class="check"><input type="radio" name="ojo_izquierdo" value="5" /> Mala = 5</label></div></div>
+              <div class="campo col-4"><label class="req">Ojo derecho</label><div class="micro-grid"><label class="check"><input type="radio" name="ojo_derecho" value="8" required /> Excelente = 8</label><label class="check"><input type="radio" name="ojo_derecho" value="7" /> Buena = 7</label><label class="check"><input type="radio" name="ojo_derecho" value="6" /> Regular = 6</label><label class="check"><input type="radio" name="ojo_derecho" value="5" /> Mala = 5</label></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Salud bucal y seguridad social">
+          <h2 class="section-title">Salud bucal y seguridad social</h2>
+          <p class="intro">Toda la información de esta sección es obligatoria. El campo “Otro / cuál” de seguridad social queda como opcional.</p>
+          <div class="grupo">
+            <h3 class="subtitulo">Salud bucal</h3>
+            <div class="grid">
+              <div class="campo col-4"><label class="req">Conoce el menor la técnica de cepillado dental</label><div class="checks"><label class="check"><input type="radio" name="tecnica_cepillado" value="No" required /> No</label><label class="check"><input type="radio" name="tecnica_cepillado" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-4"><label class="req">Aplica barniz o gel de flúor</label><div class="checks"><label class="check"><input type="radio" name="fluor" value="No" required /> No</label><label class="check"><input type="radio" name="fluor" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-4"><label class="req">Presenta caries dental</label><div class="checks"><label class="check"><input type="radio" name="caries" value="No" required /> No</label><label class="check"><input type="radio" name="caries" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-6"><label class="req">Presenta encía inflamada o sangra al cepillarse</label><div class="checks"><label class="check"><input type="radio" name="encia_inflamada" value="No" required /> No</label><label class="check"><input type="radio" name="encia_inflamada" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-6"><label class="req">Dientes en mala posición o chuecos</label><div class="checks"><label class="check"><input type="radio" name="dientes_chuecos" value="No" required /> No</label><label class="check"><input type="radio" name="dientes_chuecos" value="Sí" /> Sí</label></div></div>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo req">Seguridad social</h3>
+            <div class="checks" data-required-check="seguridad_social" data-label="Seguridad social">
+              <label class="check"><input type="checkbox" name="seguridad_social" value="Sin seguro" /> Sin seguro</label>
+              <label class="check"><input type="checkbox" name="seguridad_social" value="IMSS" /> IMSS</label>
+              <label class="check"><input type="checkbox" name="seguridad_social" value="ISSSTE" /> ISSSTE</label>
+              <label class="check"><input type="checkbox" name="seguridad_social" value="Servicio Médico de PEMEX" /> Servicio Médico de PEMEX</label>
+              <label class="check"><input type="checkbox" name="seguridad_social" value="ISSFAM" /> ISSFAM</label>
+              <label class="check"><input type="checkbox" name="seguridad_social" value="IMSS BIENESTAR" /> IMSS BIENESTAR</label>
+            </div>
+            <div class="grid" style="margin-top:12px;">
+              <div class="campo col-6"><label>Otro / cuál</label><input type="text" name="seguridad_otro" /></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Estado general de salud">
+          <h2 class="section-title">Estado general de salud</h2>
+          <p class="intro">Toda la información de esta sección es obligatoria. En agudeza auditiva: <strong>TA</strong> significa transmisión aérea, es decir, la audición por el conducto normal del oído; <strong>TO</strong> significa transmisión ósea, es decir, la audición por vibración a través del hueso.</p>
+          <div class="grupo">
+            <h3 class="subtitulo">Tipo de sangre</h3>
+            <div class="checks">
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="O+" required /> O+</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="O-" /> O-</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="A+" /> A+</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="A-" /> A-</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="B+" /> B+</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="B-" /> B-</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="AB+" /> AB+</label>
+              <label class="check"><input type="radio" name="grupo_sanguineo" value="AB-" /> AB-</label>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo">Agudeza auditiva</h3>
+            <div class="dos-columnas">
+              <div class="campo"><label class="req">Oído izquierdo</label><div class="checks"><label class="check"><input type="radio" name="auditiva_izq" value="TA" required /> TA</label><label class="check"><input type="radio" name="auditiva_izq" value="TO" /> TO</label></div></div>
+              <div class="campo"><label class="req">Oído derecho</label><div class="checks"><label class="check"><input type="radio" name="auditiva_der" value="TA" required /> TA</label><label class="check"><input type="radio" name="auditiva_der" value="TO" /> TO</label></div></div>
+            </div>
+            <p class="nota">TA: Transmisión aérea. Evalúa cómo escucha el alumno por el conducto normal del oído. TO: Transmisión ósea. Evalúa la audición mediante vibración transmitida por el hueso.</p>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo">Uso de aparato auxiliar auditivo</h3>
+            <div class="dos-columnas">
+              <div class="campo"><label class="req">Oído izquierdo</label><div class="checks"><label class="check"><input type="radio" name="aparato_izq" value="No" required /> No</label><label class="check"><input type="radio" name="aparato_izq" value="Sí" /> Sí</label></div></div>
+              <div class="campo"><label class="req">Oído derecho</label><div class="checks"><label class="check"><input type="radio" name="aparato_der" value="No" required /> No</label><label class="check"><input type="radio" name="aparato_der" value="Sí" /> Sí</label></div></div>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo">Problemas posturales</h3>
+            <div class="grid">
+              <div class="campo col-6"><label class="req">¿Se observa algún problema postural?</label><div class="checks"><label class="check"><input type="radio" name="problema_postural" value="No" required /> No</label><label class="check"><input type="radio" name="problema_postural" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-6"><label class="req">¿Utiliza algún aparato ortopédico?</label><div class="checks"><label class="check"><input type="radio" name="aparato_ortopedico" value="No" required /> No</label><label class="check"><input type="radio" name="aparato_ortopedico" value="Sí" /> Sí</label></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Antecedentes farmacológicos">
+          <h2 class="section-title">Antecedentes farmacológicos</h2>
+          <p class="intro">Seleccione NO o SÍ en cada antecedente. El cuadro “Cuál” sólo se habilita cuando se elige SÍ; en ese caso también será obligatorio escribir la información correspondiente.</p>
+          <div class="grupo">
+            <div class="grid">
+              <div class="campo col-4"><label class="req">Alergia a algún medicamento</label><div class="checks"><label class="check"><input type="radio" name="alergia_medicamento" value="No" required /> No</label><label class="check"><input type="radio" name="alergia_medicamento" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-8"><label>Cuál</label><input type="text" name="cual_alergia_medicamento" data-condicional="alergia_medicamento" disabled placeholder="Sólo si selecciona SÍ" /></div>
+              <div class="campo col-4"><label class="req">Alergia o intolerancia a algún alimento</label><div class="checks"><label class="check"><input type="radio" name="alergia_alimento" value="No" required /> No</label><label class="check"><input type="radio" name="alergia_alimento" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-8"><label>Cuál</label><input type="text" name="cual_alergia_alimento" data-condicional="alergia_alimento" disabled placeholder="Sólo si selecciona SÍ" /></div>
+              <div class="campo col-4"><label class="req">Usa algún medicamento permanente</label><div class="checks"><label class="check"><input type="radio" name="medicamento_permanente" value="No" required /> No</label><label class="check"><input type="radio" name="medicamento_permanente" value="Sí" /> Sí</label></div></div>
+              <div class="campo col-8"><label>Cuál</label><input type="text" name="cual_medicamento_permanente" data-condicional="medicamento_permanente" disabled placeholder="Sólo si selecciona SÍ" /></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Enfermedades crónicas">
+          <h2 class="section-title">Enfermedades crónicas</h2>
+          <p class="intro">Toda la información de esta sección es obligatoria. Seleccione NO o SÍ en cada padecimiento.</p>
+          <div class="grupo">
+            <div class="lista-enfermedades" id="listaEnfermedades"></div>
+          </div>
+        </section>
+
+        <section class="page" data-title="Historial sociofamiliar">
+          <h2 class="section-title">Historial sociofamiliar</h2>
+          <p class="intro">Toda la información de esta sección es obligatoria. En “Otra actividad”, el cuadro para escribir sólo se habilita si se marca la opción Otra.</p>
+          <div class="grupo">
+            <h3 class="subtitulo req">Personas que viven con el alumno</h3>
+            <div class="checks" data-required-check="vive_con" data-label="Personas que viven con el alumno">
+              <label class="check"><input type="checkbox" name="vive_con" value="Solo padre" /> Solo padre</label>
+              <label class="check"><input type="checkbox" name="vive_con" value="Solo madre" /> Solo madre</label>
+              <label class="check"><input type="checkbox" name="vive_con" value="Ambos padres" /> Ambos padres</label>
+              <label class="check"><input type="checkbox" name="vive_con" value="Padres / otras personas" /> Padres / otras personas</label>
+              <label class="check"><input type="checkbox" name="vive_con" value="Vive solo" /> Vive solo</label>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo req">Personas con quienes pasa la mayor parte del tiempo</h3>
+            <div class="checks" data-required-check="pasa_tiempo" data-label="Personas con quienes pasa la mayor parte del tiempo">
+              <label class="check"><input type="checkbox" name="pasa_tiempo" value="Solo padre" /> Solo padre</label>
+              <label class="check"><input type="checkbox" name="pasa_tiempo" value="Solo madre" /> Solo madre</label>
+              <label class="check"><input type="checkbox" name="pasa_tiempo" value="Ambos padres" /> Ambos padres</label>
+              <label class="check"><input type="checkbox" name="pasa_tiempo" value="Padres / otras personas" /> Padres / otras personas</label>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo">Hermanos con los que cuenta el alumno</h3>
+            <div class="grid">
+              <div class="campo col-6"><label class="req">Número de hermanos</label><input type="number" name="numero_hermanos" min="0" max="20" step="1" inputmode="numeric" data-only-digits="true" required /></div>
+              <div class="campo col-6"><label class="req">Lugar que ocupa entre los hermanos</label><input type="number" name="lugar_hermanos" min="0" max="20" step="1" inputmode="numeric" data-only-digits="true" required /></div>
+            </div>
+          </div>
+          <div class="grupo">
+            <h3 class="subtitulo req">Actividad a la que le dedica más tiempo durante el día</h3>
+            <div class="checks" data-required-check="actividad_tiempo" data-label="Actividad a la que le dedica más tiempo durante el día">
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Jugar" /> Jugar</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Hacer algún deporte" /> Hacer algún deporte</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Hacer tarea" /> Hacer tarea</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Utilizar algún aparato electrónico" /> Utilizar algún aparato electrónico</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Salir con amigos" /> Salir con amigos</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Salir con la familia" /> Salir con la familia</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Trabajar" /> Trabajar</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Hacer tareas domésticas" /> Hacer tareas domésticas</label>
+              <label class="check"><input type="checkbox" name="actividad_tiempo" value="Otra" id="actividadOtraCheck" /> Otra</label>
+            </div>
+            <div class="grid" style="margin-top:12px;">
+              <div class="campo col-6"><label>Otra / cuál</label><input type="text" name="otra_actividad" id="otraActividad" disabled placeholder="Sólo si selecciona Otra" /></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="acciones">
+          <button type="button" class="btn btn-claro" id="btnAnterior">← Anterior</button>
+          <button type="button" class="btn btn-vino" id="btnSiguiente">Siguiente →</button>
+          <button type="button" class="btn btn-verde" id="btnEnviar" style="display:none;">Enviar y generar PDF</button>
+        </div>
+      </form>
+    </main>
+
+    <footer>
+      Formulario digital basado en el formato EDSEV Secundaria. Al enviar, se genera un PDF únicamente con la información capturada; la conexión con Excel en línea queda preparada para agregar posteriormente el enlace de Google Apps Script.
+    </footer>
+  </div>
+
+  <script>
+    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbytznfPwa3ciUoFxiOlKaccMpyUz-_9J6lhQCCMlvKekFccba7BxldKNjvWEA6uxL5gGQ/exec"; // Más adelante pegue aquí la URL del Web App de Google Apps Script para enviar los datos a Excel/Sheets.
+
+    const pages = [...document.querySelectorAll('.page')];
+    const nombreSeccion = document.getElementById('nombreSeccion');
+    const contador = document.getElementById('contador');
+    const progressFill = document.getElementById('progressFill');
+    const btnAnterior = document.getElementById('btnAnterior');
+    const btnSiguiente = document.getElementById('btnSiguiente');
+    const btnEnviar = document.getElementById('btnEnviar');
+    const aviso = document.getElementById('avisoValidacion');
+    const form = document.getElementById('formEDSEV');
+    const grupoSelect = form.elements['grupo'];
+    const turnoInput = document.getElementById('turno');
+    let actual = 0;
+
+    const enfermedades = [
+      'Problemas cardiovasculares (cardiopatías)', 'Hipertensión', 'Cáncer', 'Diabetes', 'Obesidad', 'Desnutrición', 'VIH Sida', 'Otras enfermedades crónicas',
+      'Enfermedades crónicas respiratorias (asma)', 'Depresión', 'Lupus', 'Insuficiencia renal', 'Artritis', 'Epilepsia o convulsiones', 'Tuberculosis', 'A la fecha ha contraído Covid-19', 'A la fecha ha contraído Dengue'
+    ];
+
+    function crearEnfermedades(){
+      const lista = document.getElementById('listaEnfermedades');
+      enfermedades.forEach((txt,idx)=>{
+        const key = 'enfermedad_' + idx;
+        const row = document.createElement('div');
+        row.className='enfermedad';
+        row.innerHTML = `<span>${txt}</span><label class="check"><input type="radio" name="${key}" value="No" required> No</label><label class="check"><input type="radio" name="${key}" value="Sí"> Sí</label>`;
+        lista.appendChild(row);
+      });
+    }
+
+    function actualizarTurno(){
+      const g = (grupoSelect.value || '').toUpperCase();
+      if(['A','B','C','D','E','F'].includes(g)) turnoInput.value = 'Matutino';
+      else if(['G','H','I','J','K','L'].includes(g)) turnoInput.value = 'Vespertino';
+      else turnoInput.value = '';
+    }
+
+    function mostrarAviso(mensaje){
+      aviso.textContent = mensaje;
+      aviso.style.display = 'block';
+      aviso.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function ocultarAviso(){
+      aviso.textContent = '';
+      aviso.style.display = 'none';
+    }
+
+    function irA(index){
+      ocultarAviso();
+      actual = Math.max(0, Math.min(index, pages.length-1));
+      pages.forEach((p,i)=>p.classList.toggle('active',i===actual));
+      nombreSeccion.textContent = `Sección ${actual+1}: ${pages[actual].dataset.title}`;
+      contador.textContent = `${actual+1} / ${pages.length}`;
+      progressFill.style.width = `${((actual+1)/pages.length)*100}%`;
+      btnAnterior.disabled = actual===0;
+      const ultima = actual===pages.length-1;
+      btnSiguiente.style.display = ultima ? 'none' : 'inline-block';
+      btnEnviar.style.display = ultima ? 'inline-block' : 'none';
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+
+    function actualizarCondicionales(){
+      document.querySelectorAll('input[data-condicional]').forEach(input=>{
+        const radioName = input.dataset.condicional;
+        const seleccionadoSi = !!form.querySelector(`input[name="${CSS.escape(radioName)}"][value="Sí"]:checked`);
+        input.disabled = !seleccionadoSi;
+        input.required = seleccionadoSi;
+        if(!seleccionadoSi) input.value = '';
+      });
+
+      const otraCheck = document.getElementById('actividadOtraCheck');
+      const otraInput = document.getElementById('otraActividad');
+      if(otraCheck && otraInput){
+        otraInput.disabled = !otraCheck.checked;
+        otraInput.required = otraCheck.checked;
+        if(!otraCheck.checked) otraInput.value = '';
+      }
+    }
+
+    function convertirTextosAMayusculas(){
+      form.querySelectorAll('input[type="text"], textarea').forEach(control=>{
+        if(!control.readOnly && !control.disabled){
+          control.value = control.value.toLocaleUpperCase('es-MX');
+        }
+      });
+    }
+
+    function validarControles(contenedor){
+      actualizarCondicionales();
+
+      for(const grupo of contenedor.querySelectorAll('[data-required-check]')){
+        const nombre = grupo.dataset.requiredCheck;
+        const etiquetaGrupo = grupo.dataset.label || nombre;
+        const seleccionado = grupo.querySelector(`input[type="checkbox"][name="${CSS.escape(nombre)}"]:checked`);
+        if(!seleccionado){
+          mostrarAviso(`Falta seleccionar al menos una opción en: ${etiquetaGrupo}.`);
+          const primero = grupo.querySelector(`input[type="checkbox"][name="${CSS.escape(nombre)}"]`);
+          if(primero) primero.focus();
+          return false;
+        }
+      }
+
+      const controles = [...contenedor.querySelectorAll('input, select, textarea')].filter(c=>!c.disabled);
+      const gruposRadioRevisados = new Set();
+
+      for(const control of controles){
+        const tipo = (control.type || '').toLowerCase();
+        const etiqueta = control.closest('.campo')?.querySelector('label')?.textContent?.replace('*','').trim() || control.name;
+
+        if(tipo === 'radio'){
+          if(control.required && !gruposRadioRevisados.has(control.name)){
+            gruposRadioRevisados.add(control.name);
+            const alguno = contenedor.querySelector(`input[type="radio"][name="${CSS.escape(control.name)}"]:checked`);
+            if(!alguno){
+              mostrarAviso(`Falta seleccionar una opción en: ${etiqueta}.`);
+              control.focus();
+              return false;
+            }
+          }
+          continue;
+        }
+
+        if(control.required && !String(control.value || '').trim()){
+          mostrarAviso(`Falta capturar el campo obligatorio: ${etiqueta}.`);
+          control.focus();
+          return false;
+        }
+
+        if(String(control.value || '').trim() && !control.checkValidity()){
+          if(control.name === 'curp') mostrarAviso('La CURP debe tener exactamente 18 caracteres, usando letras mayúsculas y números.');
+          else if(control.name === 'telefono_tutor') mostrarAviso('El teléfono/celular debe contener exactamente 10 números.');
+          else if(control.name === 'correo_tutor') mostrarAviso('El correo electrónico no tiene un formato válido.');
+          else mostrarAviso(`Revise el valor capturado en: ${etiqueta}.`);
+          control.focus();
+          return false;
+        }
+      }
+      ocultarAviso();
+      return true;
+    }
+
+    function validarTodo(){
+      for(let i=0; i<pages.length; i++){
+        if(!validarControles(pages[i])){
+          irA(i);
+          setTimeout(()=>validarControles(pages[i]), 150);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function datosFormulario(){
+      actualizarTurno();
+      actualizarCondicionales();
+      convertirTextosAMayusculas();
+      const fd = new FormData(form);
+      const data = {};
+      for(const [k,v] of fd.entries()){
+        if(data[k]){
+          if(Array.isArray(data[k])) data[k].push(v);
+          else data[k] = [data[k], v];
+        }else data[k]=v;
+      }
+      data.fecha_captura = new Date().toLocaleString('es-MX');
+      return data;
+    }
+
+    function val(data, key){
+      const v = data[key];
+      if(Array.isArray(v)) return v.join(', ');
+      return v || '';
+    }
+
+    function opcion(data, key, expected){
+      const v = data[key];
+      if(Array.isArray(v)) return v.includes(expected) ? '☑' : '☐';
+      return v === expected ? '☑' : '☐';
+    }
+
+    async function enviarDatosExcel(data){
+      if(!URL_APPS_SCRIPT){
+        console.log('Datos listos para enviar a Excel/Sheets cuando se configure URL_APPS_SCRIPT:', data);
+        return;
+      }
+      try{
+        await fetch(URL_APPS_SCRIPT, {
+          method:'POST',
+          mode:'no-cors',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(data)
+        });
+      }catch(err){
+        console.warn('No se pudieron enviar los datos a Excel/Sheets:', err);
+      }
+    }
+
+    async function loadImageAsDataURL(url){
+      try{
+        const res = await fetch(url, {mode:'cors'});
+        const blob = await res.blob();
+        return await new Promise((resolve, reject)=>{
+          const reader = new FileReader();
+          reader.onload = ()=>resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }catch(e){
+        return null;
+      }
+    }
+
+    function marcar(doc, x, y, texto, seleccionado=false){
+      doc.rect(x, y-3, 3, 3);
+      if(seleccionado){
+        doc.setFont('helvetica','bold');
+        doc.text('X', x+.45, y-.45);
+        doc.setFont('helvetica','normal');
+      }
+      doc.text(texto, x+4.2, y);
+    }
+
+    function textoLinea(doc, label, value, x, y, w){
+      doc.setFont('helvetica','bold');
+      doc.text(label, x, y);
+      doc.setFont('helvetica','normal');
+      const lx = x + doc.getTextWidth(label) + 2;
+      doc.line(lx, y+1, x+w, y+1);
+      const txt = String(value || '');
+      if(txt) doc.text(doc.splitTextToSize(txt, Math.max(10, x+w-lx-1)), lx+1, y);
+    }
+
+    function encabezadoPDF(doc, imgs){
+      const W = 216;
+      if(imgs[0]) doc.addImage(imgs[0], 'PNG', 15, 8, 21, 21, undefined, 'FAST');
+      if(imgs[1]) doc.addImage(imgs[1], 'PNG', 45, 11, 28, 14, undefined, 'FAST');
+      if(imgs[2]) doc.addImage(imgs[2], 'JPEG', 156, 8, 45, 20, undefined, 'FAST');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.text('SECRETARÍA DE EDUCACIÓN DE VERACRUZ', W/2, 33, {align:'center'});
+      doc.text('EXPEDIENTE DIGITAL DE SALUD ESCOLAR VERACRUZ', W/2, 39, {align:'center'});
+      doc.text('NIVEL SECUNDARIA  CICLO ESCOLAR 2025 - 2026', W/2, 45, {align:'center'});
+    }
+
+    function barra(doc, titulo, y){
+      doc.setFillColor(155,11,79);
+      doc.rect(15, y, 186, 7, 'F');
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(9.5);
+      doc.text(titulo, 108, y+5, {align:'center'});
+      doc.setTextColor(0,0,0);
+      return y+13;
+    }
+
+    async function generarPDF(data){
+      if(!window.jspdf){
+        alert('No cargó la librería jsPDF. Revise la conexión a internet y vuelva a intentar.');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'letter'});
+      const logoUrls = [
+        'https://bunny-wp-pullzone-igwhdjali4.b-cdn.net/wp-content/uploads/2019/09/Escudo-heraldico-01-e1569435071390.png',
+        'https://empleadodigital.sev.gob.mx/assets/icon/sev-logo.png',
+        'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhvTlQsqPV_9F2hUQbLB6H3Q_NC9F0as-Y4K52j7P8ODmJBP0Ym2NdMnsNYNKYsJ8lO4DHcqfcTrsL_l7b_pxgy2AZoPpO9dce8Tumm1asFfAbik953mwQxVT8vAJ3uXnKwFdeRSuQpXPz8l2ulSk2tJzw9NlW_xW_1_WiC_2fDA93FSIa-1uZXvWJQlg/s1248/edsev0.jpg'
+      ];
+      const imgs = await Promise.all(logoUrls.map(loadImageAsDataURL));
+
+      doc.setProperties({title:'EDSEV Secundaria', subject:'Expediente Digital de Salud Escolar Veracruz'});
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8.5);
+
+      encabezadoPDF(doc, imgs);
+      let y = 52;
+      y = barra(doc, 'IDENTIFICACIÓN DE LA ALUMNA O ALUMNO', y);
+      textoLinea(doc, 'Primer apellido:', val(data,'primer_apellido'), 15, y, 55);
+      textoLinea(doc, 'Segundo apellido:', val(data,'segundo_apellido'), 75, y, 55);
+      textoLinea(doc, 'Nombre(s):', val(data,'nombres_alumno'), 135, y, 66);
+      y += 8;
+      textoLinea(doc, 'CURP:', val(data,'curp'), 15, y, 82);
+      doc.text(`Sexo: ${opcion(data,'sexo','Masculino')} Masculino   ${opcion(data,'sexo','Femenino')} Femenino`, 105, y);
+      y += 8;
+      textoLinea(doc, 'Fecha de nacimiento:', val(data,'fecha_nacimiento'), 15, y, 62);
+      textoLinea(doc, 'Edad:', val(data,'edad'), 82, y, 30);
+      textoLinea(doc, 'Grado:', val(data,'grado'), 118, y, 30);
+      textoLinea(doc, 'Grupo:', val(data,'grupo'), 154, y, 35);
+
+      y += 9;
+      y = barra(doc, 'DATOS DE LA ESCUELA', y);
+      textoLinea(doc, 'Clave de la escuela:', val(data,'clave_escuela'), 15, y, 78);
+      textoLinea(doc, 'Nombre:', val(data,'nombre_escuela'), 98, y, 103);
+      y += 8;
+      textoLinea(doc, 'Turno:', val(data,'turno'), 15, y, 55);
+      textoLinea(doc, 'Entidad federativa:', val(data,'entidad'), 75, y, 55);
+      textoLinea(doc, 'Municipio:', val(data,'municipio'), 135, y, 66);
+      y += 8;
+      textoLinea(doc, 'Localidad:', val(data,'localidad'), 15, y, 186);
+
+      y += 9;
+      y = barra(doc, 'DATOS DEL PADRE, MADRE O TUTOR', y);
+      textoLinea(doc, 'Primer apellido:', val(data,'tutor_primer_apellido'), 15, y, 55);
+      textoLinea(doc, 'Segundo apellido:', val(data,'tutor_segundo_apellido'), 75, y, 55);
+      textoLinea(doc, 'Nombre(s):', val(data,'tutor_nombres'), 135, y, 66);
+      y += 8;
+      textoLinea(doc, 'Relación con el menor:', val(data,'relacion_tutor'), 15, y, 65);
+      textoLinea(doc, 'Teléfono/celular:', val(data,'telefono_tutor'), 85, y, 48);
+      textoLinea(doc, 'Correo electrónico:', val(data,'correo_tutor'), 137, y, 64);
+
+      y += 9;
+      y = barra(doc, 'DATOS DE LA ALUMNA O ALUMNO', y);
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Peso y talla', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 7;
+      textoLinea(doc, 'Peso:', `${val(data,'peso')} kg`, 15, y, 45);
+      textoLinea(doc, 'Talla:', `${val(data,'talla')} cm`, 63, y, 45);
+      textoLinea(doc, 'Medida de cintura:', `${val(data,'cintura')} cm`, 111, y, 45);
+      textoLinea(doc, 'Medida de cadera:', `${val(data,'cadera')} cm`, 159, y, 42);
+      y += 9;
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Agudeza visual', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 7;
+      doc.text(`¿Usa lentes? ${opcion(data,'usa_lentes','No')} No   ${opcion(data,'usa_lentes','Sí')} Sí`, 15, y);
+      textoLinea(doc, 'Ojo izquierdo:', val(data,'ojo_izquierdo'), 76, y, 48);
+      textoLinea(doc, 'Ojo derecho:', val(data,'ojo_derecho'), 130, y, 48);
+      doc.setFontSize(7.3); doc.text('Escala: excelente=8, buena=7, regular=6, mala=5.', 15, y+6); doc.setFontSize(8.5);
+
+      y += 18;
+      doc.setFillColor(233,238,238); doc.rect(15, y-4, 186, 35, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Salud bucal', 108, y+1, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 8;
+      doc.text(`Técnica de cepillado dental: ${opcion(data,'tecnica_cepillado','No')} No  ${opcion(data,'tecnica_cepillado','Sí')} Sí`, 18, y);
+      doc.text(`Aplica barniz o gel de flúor: ${opcion(data,'fluor','No')} No  ${opcion(data,'fluor','Sí')} Sí`, 78, y);
+      doc.text(`Presenta caries dental: ${opcion(data,'caries','No')} No  ${opcion(data,'caries','Sí')} Sí`, 145, y);
+      y += 8;
+      doc.text(`Encía inflamada o sangra al cepillarse: ${opcion(data,'encia_inflamada','No')} No  ${opcion(data,'encia_inflamada','Sí')} Sí`, 18, y);
+      doc.text(`Dientes en mala posición o chuecos: ${opcion(data,'dientes_chuecos','No')} No  ${opcion(data,'dientes_chuecos','Sí')} Sí`, 105, y);
+      y += 13;
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Seguridad social', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 7;
+      doc.text(`Seguridad social: ${val(data,'seguridad_social') || 'No especificado'}  ${val(data,'seguridad_otro') ? 'Otro: '+val(data,'seguridad_otro') : ''}`, 15, y);
+      doc.setFontSize(8); doc.text('1', 108, 270, {align:'center'}); doc.setFontSize(8.5);
+
+      doc.addPage('letter','portrait');
+      encabezadoPDF(doc, imgs);
+      y = 52;
+      y = barra(doc, 'ESTADO GENERAL DE SALUD', y);
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Tipo de sangre', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 8;
+      ['O+','O-','A+','A-','B+','B-','AB+','AB-'].forEach((g,i)=>marcar(doc, 38+i*18, y, g, val(data,'grupo_sanguineo')===g));
+      y += 16;
+      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 33, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Agudeza auditiva', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 9;
+      doc.text(`Oído izquierdo: ${opcion(data,'auditiva_izq','TA')} TA   ${opcion(data,'auditiva_izq','TO')} TO`, 35, y);
+      doc.text(`Oído derecho: ${opcion(data,'auditiva_der','TA')} TA   ${opcion(data,'auditiva_der','TO')} TO`, 112, y);
+      y += 9;
+      doc.text(`Uso aparato auxiliar auditivo - Izquierdo: ${opcion(data,'aparato_izq','No')} NO   ${opcion(data,'aparato_izq','Sí')} Sí`, 28, y);
+      doc.text(`Derecho: ${opcion(data,'aparato_der','No')} NO   ${opcion(data,'aparato_der','Sí')} Sí`, 132, y);
+      y += 17;
+      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 25, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Problemas Posturales', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 9;
+      doc.text(`¿Se observa algún problema postural? ${opcion(data,'problema_postural','No')} NO   ${opcion(data,'problema_postural','Sí')} Sí`, 25, y);
+      y += 7;
+      doc.text(`¿Utiliza algún aparato ortopédico? ${opcion(data,'aparato_ortopedico','No')} NO   ${opcion(data,'aparato_ortopedico','Sí')} Sí`, 25, y);
+
+      y += 17;
+      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 33, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Antecedentes farmacológicos', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 9;
+      doc.text(`Alergia a algún medicamento: ${opcion(data,'alergia_medicamento','No')} NO  ${opcion(data,'alergia_medicamento','Sí')} Sí   Cuál: ${val(data,'cual_alergia_medicamento')}`, 22, y);
+      y += 7;
+      doc.text(`Alergia o intolerancia a algún alimento: ${opcion(data,'alergia_alimento','No')} NO  ${opcion(data,'alergia_alimento','Sí')} Sí   Cuál: ${val(data,'cual_alergia_alimento')}`, 22, y);
+      y += 7;
+      doc.text(`Usa algún medicamento permanente: ${opcion(data,'medicamento_permanente','No')} NO  ${opcion(data,'medicamento_permanente','Sí')} Sí   Cuál: ${val(data,'cual_medicamento_permanente')}`, 22, y);
+
+      y += 18;
+      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 74, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Enfermedades crónicas', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+      y += 8;
+      enfermedades.forEach((enf, idx)=>{
+        const col = idx < 8 ? 20 : 110;
+        const rowY = y + (idx % 8) * 7;
+        const value = val(data, 'enfermedad_'+idx);
+        doc.text(`${enf.substring(0,38)} ${value==='No'?'☑':'☐'} NO ${value==='Sí'?'☑':'☐'} Sí`, col, rowY);
+      });
+      y += 70;
+      doc.setFontSize(8); doc.text('2', 108, 270, {align:'center'}); doc.setFontSize(8.5);
+
+      doc.addPage('letter','portrait');
+      encabezadoPDF(doc, imgs);
+      y = 52;
+      doc.setFillColor(233,238,238); doc.rect(15, y-8, 186, 92, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.setFontSize(11); doc.text('Historial sociofamiliar', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+      y += 12;
+      doc.setFont('helvetica','bold'); doc.text('Personas que viven con el alumno:', 20, y); doc.setFont('helvetica','normal'); y += 8;
+      ['Solo padre','Solo madre','Ambos padres','Padres / otras personas','Vive solo'].forEach((o,i)=>marcar(doc, 22+i*35, y, o, (Array.isArray(data.vive_con)?data.vive_con:[]).includes(o)));
+      y += 17;
+      doc.setFont('helvetica','bold'); doc.text('Personas con quienes pasa la mayor parte del tiempo:', 20, y); doc.setFont('helvetica','normal'); y += 8;
+      ['Solo padre','Solo madre','Ambos padres','Padres / otras personas'].forEach((o,i)=>marcar(doc, 22+i*40, y, o, (Array.isArray(data.pasa_tiempo)?data.pasa_tiempo:[]).includes(o)));
+      y += 17;
+      doc.setFont('helvetica','bold'); doc.text('Hermanos con los que cuenta el alumno:', 20, y); doc.setFont('helvetica','normal'); y += 8;
+      textoLinea(doc, 'Número de hermanos:', val(data,'numero_hermanos'), 50, y, 42);
+      textoLinea(doc, 'Lugar que ocupa entre hermanos:', val(data,'lugar_hermanos'), 106, y, 52);
+      y += 17;
+      doc.setFont('helvetica','bold'); doc.text('Actividad a la que le dedica más tiempo durante el día:', 20, y); doc.setFont('helvetica','normal'); y += 8;
+      const acts = ['Jugar','Hacer algún deporte','Hacer tarea','Utilizar algún aparato electrónico','Salir con amigos','Salir con la familia','Trabajar','Hacer tareas domésticas','Otra'];
+      acts.forEach((o,i)=>{
+        const x = 22 + (i%4)*45;
+        const yy = y + Math.floor(i/4)*9;
+        marcar(doc, x, yy, o.substring(0,34), (Array.isArray(data.actividad_tiempo)?data.actividad_tiempo:[]).includes(o));
+      });
+      y += 25;
+      textoLinea(doc, 'Otra / cuál:', val(data,'otra_actividad'), 22, y, 80);
+      doc.setFontSize(8); doc.text('3', 108, 270, {align:'center'}); doc.setFontSize(8.5);
+
+      const apellidos = `${val(data,'primer_apellido')}_${val(data,'segundo_apellido')}`.replace(/\s+/g,'_').replace(/[^A-Za-z0-9_\-]/g,'');
+      const nombreArchivo = `EDSEV_${apellidos || val(data,'curp') || 'alumno'}.pdf`;
+      doc.save(nombreArchivo);
+    }
+
+    btnAnterior.addEventListener('click',()=>irA(actual-1));
+    btnSiguiente.addEventListener('click',()=>{
+      actualizarTurno();
+      if(!validarControles(pages[actual])) return;
+      irA(actual+1);
+    });
+    btnEnviar.addEventListener('click', async ()=>{
+      actualizarTurno();
+      if(!validarTodo()) return;
+      const data = datosFormulario();
+      btnEnviar.disabled = true;
+      btnEnviar.textContent = 'Generando PDF...';
+      await enviarDatosExcel(data);
+      await generarPDF(data);
+      btnEnviar.disabled = false;
+      btnEnviar.textContent = 'Enviar y generar PDF';
+    });
+
+    form.addEventListener('input', e=>{
+      if(e.target.matches('input[type="text"], textarea') && !e.target.readOnly && !e.target.disabled){
+        e.target.value = e.target.value.toLocaleUpperCase('es-MX');
+      }
+      if(e.target.name === 'curp') e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,18);
+      if(e.target.name === 'telefono_tutor') e.target.value = e.target.value.replace(/\D/g,'').slice(0,10);
+      if(e.target.dataset.onlyDigits === 'true') e.target.value = e.target.value.replace(/\D/g,'');
+      if(e.target.name === 'grupo') actualizarTurno();
+      actualizarCondicionales();
+    });
+
+    form.addEventListener('change', ()=>{
+      actualizarTurno();
+      actualizarCondicionales();
+    });
+
+    form.addEventListener('keydown', e=>{
+      if(e.target.dataset.onlyDigits === 'true' && ['e','E','+','-','.',','].includes(e.key)){
+        e.preventDefault();
+      }
+    });
+
+    crearEnfermedades();
+    actualizarTurno();
+    actualizarCondicionales();
+    irA(0);
+  </script>
+</body>
+</html>
