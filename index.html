@@ -334,6 +334,34 @@
       line-height:1.45;
     }
 
+
+
+    .mensaje-exito{
+      display:none;
+      text-align:center;
+      background:linear-gradient(180deg,#ffffff,#f7fff9);
+      border:2px solid rgba(23,114,69,.35);
+      border-radius:20px;
+      padding:30px 22px;
+      box-shadow:0 10px 25px rgba(23,114,69,.12);
+      margin:18px 0;
+    }
+
+    .mensaje-exito h2{
+      margin:0 0 12px;
+      color:var(--verde);
+      text-transform:uppercase;
+      font-size:clamp(22px,3vw,32px);
+    }
+
+    .mensaje-exito p{
+      margin:8px auto;
+      max-width:780px;
+      font-size:17px;
+      line-height:1.55;
+      font-weight:700;
+    }
+
     @media (max-width:820px){
       .logos img{max-height:54px;}
       main, header, .barra-progreso{padding-left:14px; padding-right:14px;}
@@ -381,6 +409,11 @@
     <main>
       <form id="formEDSEV" novalidate>
         <div class="aviso-validacion" id="avisoValidacion"></div>
+        <div class="mensaje-exito" id="mensajeExito" aria-live="polite">
+          <h2>¡Gracias por la información capturada!</h2>
+          <p>El registro fue enviado para guardarse en la hoja de cálculo <strong>RECEPTOR EDSEV SECUNDARIA</strong>.</p>
+          <p>Puede cerrar esta página o actualizarla para capturar un nuevo expediente.</p>
+        </div>
 
         <section class="page active" data-title="Identificación de la alumna o alumno">
           <h2 class="section-title">Identificación de la alumna o alumno</h2>
@@ -601,12 +634,12 @@
     </main>
 
     <footer>
-      Formulario digital basado en el formato EDSEV Secundaria. Al presionar ENVIAR, la información capturada se manda a Google Sheets mediante Google Apps Script y después se genera un PDF únicamente con los datos del formulario.
+      Formulario digital basado en el formato EDSEV Secundaria. Al presionar ENVIAR, la información capturada se manda a Google Sheets mediante Google Apps Script.
     </footer>
   </div>
 
   <script>
-    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbytznfPwa3ciUoFxiOlKaccMpyUz-_9J6lhQCCMlvKekFccba7BxldKNjvWEA6uxL5gGQ/exec"; // PEGUE AQUÍ LA URL DEL WEB APP DE GOOGLE APPS SCRIPT. Ejemplo: https://script.google.com/macros/s/AKfycb.../exec
+    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbytznfPwa3ciUoFxiOlKaccMpyUz-_9J6lhQCCMlvKekFccba7BxldKNjvWEA6uxL5gGQ/exec";
 
     const pages = [...document.querySelectorAll('.page')];
     const nombreSeccion = document.getElementById('nombreSeccion');
@@ -765,14 +798,29 @@
       actualizarTurno();
       actualizarCondicionales();
       convertirTextosAMayusculas();
-      const fd = new FormData(form);
-      const data = {};
-      for(const [k,v] of fd.entries()){
-        if(data[k]){
-          if(Array.isArray(data[k])) data[k].push(v);
-          else data[k] = [data[k], v];
-        }else data[k]=v;
-      }
+
+      const data = {
+        archivo_destino: 'RECEPTOR EDSEV SECUNDARIA',
+        hoja_destino: 'Hoja 1'
+      };
+
+      const controles = [...form.querySelectorAll('input[name], select[name], textarea[name]')];
+      const nombres = [...new Set(controles.map(c=>c.name))];
+
+      nombres.forEach(nombre=>{
+        const grupo = controles.filter(c=>c.name === nombre);
+        const tipo = (grupo[0].type || '').toLowerCase();
+
+        if(tipo === 'checkbox'){
+          data[nombre] = grupo.filter(c=>c.checked).map(c=>c.value).join(', ');
+        }else if(tipo === 'radio'){
+          const seleccionado = grupo.find(c=>c.checked);
+          data[nombre] = seleccionado ? seleccionado.value : '';
+        }else{
+          data[nombre] = grupo[0].value || '';
+        }
+      });
+
       data.fecha_captura = new Date().toLocaleString('es-MX');
       return data;
     }
@@ -790,10 +838,6 @@
     }
 
     async function enviarDatosExcel(data){
-      if(!URL_APPS_SCRIPT){
-        console.log('Datos listos para enviar a Google Sheets cuando se configure URL_APPS_SCRIPT:', data);
-        return true;
-      }
       try{
         await fetch(URL_APPS_SCRIPT, {
           method:'POST',
@@ -804,308 +848,21 @@
         return true;
       }catch(err){
         console.warn('No se pudieron enviar los datos a Google Sheets:', err);
-        alert('No se pudieron enviar los datos a Google Sheets. Revise su conexión o la URL del Apps Script. Aun así se generará el PDF.');
+        mostrarAviso('No se pudieron enviar los datos a Google Sheets. Revise la conexión a internet o la URL del Apps Script y vuelva a intentar.');
         return false;
       }
     }
 
-    async function loadImageAsDataURL(url){
-      try{
-        const res = await fetch(url, {mode:'cors'});
-        const blob = await res.blob();
-        return await new Promise((resolve, reject)=>{
-          const reader = new FileReader();
-          reader.onload = ()=>resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      }catch(e){
-        return null;
-      }
-    }
-
-    function marcar(doc, x, y, texto, seleccionado=false){
-      doc.rect(x, y-3, 3, 3);
-      if(seleccionado){
-        doc.setFont('helvetica','bold');
-        doc.text('X', x+.45, y-.45);
-        doc.setFont('helvetica','normal');
-      }
-      doc.text(texto, x+4.2, y);
-    }
-
-    function textoLinea(doc, label, value, x, y, w){
-      doc.setFont('helvetica','bold');
-      doc.text(label, x, y);
-      doc.setFont('helvetica','normal');
-      const lx = x + doc.getTextWidth(label) + 2;
-      doc.line(lx, y+1, x+w, y+1);
-      const txt = String(value || '');
-      if(txt) doc.text(doc.splitTextToSize(txt, Math.max(10, x+w-lx-1)), lx+1, y);
-    }
-
-    function encabezadoPDF(doc, imgs){
-      const W = 216;
-      if(imgs[0]) doc.addImage(imgs[0], 'PNG', 15, 8, 21, 21, undefined, 'FAST');
-      if(imgs[1]) doc.addImage(imgs[1], 'PNG', 45, 11, 28, 14, undefined, 'FAST');
-      if(imgs[2]) doc.addImage(imgs[2], 'JPEG', 156, 8, 45, 20, undefined, 'FAST');
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(10);
-      doc.text('SECRETARÍA DE EDUCACIÓN DE VERACRUZ', W/2, 33, {align:'center'});
-      doc.text('EXPEDIENTE DIGITAL DE SALUD ESCOLAR VERACRUZ', W/2, 39, {align:'center'});
-      doc.text('NIVEL SECUNDARIA  CICLO ESCOLAR 2025 - 2026', W/2, 45, {align:'center'});
-    }
-
-    function barra(doc, titulo, y){
-      doc.setFillColor(155,11,79);
-      doc.rect(15, y, 186, 7, 'F');
-      doc.setTextColor(255,255,255);
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(9.5);
-      doc.text(titulo, 108, y+5, {align:'center'});
-      doc.setTextColor(0,0,0);
-      return y+13;
-    }
-
-    function limpiarTextoPDF(texto){
-      return String(texto || '')
-        .replace(/\s+/g,' ')
-        .replace(/[“”]/g,'"')
-        .replace(/[‘’]/g,"'")
-        .replace(/[–—]/g,'-')
-        .trim();
-    }
-
-    function escaparPDF(texto){
-      return limpiarTextoPDF(texto)
-        .replace(/[^\x00-\xff]/g,'?')
-        .replace(/\\/g,'\\\\')
-        .replace(/\(/g,'\\(')
-        .replace(/\)/g,'\\)');
-    }
-
-    function cortarLineas(texto, maxChars){
-      const palabras = limpiarTextoPDF(texto).split(' ').filter(Boolean);
-      const lineas = [];
-      let linea = '';
-      palabras.forEach(palabra=>{
-        if((linea + ' ' + palabra).trim().length > maxChars){
-          if(linea) lineas.push(linea);
-          linea = palabra;
-        }else{
-          linea = (linea + ' ' + palabra).trim();
-        }
-      });
-      if(linea) lineas.push(linea);
-      return lineas.length ? lineas : [''];
-    }
-
-    function contenidoTextoPDF(data){
-      const secciones = [];
-      const agregar = (titulo, filas)=>secciones.push({titulo, filas});
-      const arreglo = (key)=>Array.isArray(data[key]) ? data[key].join(', ') : (data[key] || '');
-
-      agregar('IDENTIFICACION DE LA ALUMNA O ALUMNO', [
-        ['Primer apellido', val(data,'primer_apellido')],
-        ['Segundo apellido', val(data,'segundo_apellido')],
-        ['Nombre(s)', val(data,'nombres_alumno')],
-        ['CURP', val(data,'curp')],
-        ['Sexo', val(data,'sexo')],
-        ['Fecha de nacimiento', val(data,'fecha_nacimiento')],
-        ['Edad', val(data,'edad')],
-        ['Grado', val(data,'grado')],
-        ['Grupo', val(data,'grupo')]
-      ]);
-
-      agregar('DATOS DE LA ESCUELA', [
-        ['Clave de la escuela', val(data,'clave_escuela')],
-        ['Nombre de la escuela', val(data,'nombre_escuela')],
-        ['Turno', val(data,'turno')],
-        ['Entidad Federativa', val(data,'entidad')],
-        ['Municipio', val(data,'municipio')],
-        ['Localidad', val(data,'localidad')]
-      ]);
-
-      agregar('DATOS DEL PADRE, MADRE O TUTOR', [
-        ['Primer apellido', val(data,'tutor_primer_apellido')],
-        ['Segundo apellido', val(data,'tutor_segundo_apellido')],
-        ['Nombre(s)', val(data,'tutor_nombres')],
-        ['Relacion con el menor', val(data,'relacion_tutor')],
-        ['Telefono/celular', val(data,'telefono_tutor')],
-        ['Correo electronico', val(data,'correo_tutor')]
-      ]);
-
-      agregar('DATOS FISICOS Y AGUDEZA VISUAL', [
-        ['Peso', val(data,'peso') + ' kg'],
-        ['Talla', val(data,'talla') + ' cm'],
-        ['Medida de cintura', val(data,'cintura') + ' cm'],
-        ['Medida de cadera', val(data,'cadera') + ' cm'],
-        ['Usa lentes', val(data,'usa_lentes')],
-        ['Ojo izquierdo', val(data,'ojo_izquierdo')],
-        ['Ojo derecho', val(data,'ojo_derecho')]
-      ]);
-
-      agregar('SALUD BUCAL Y SEGURIDAD SOCIAL', [
-        ['Conoce tecnica de cepillado dental', val(data,'tecnica_cepillado')],
-        ['Aplica barniz o gel de fluor', val(data,'fluor')],
-        ['Presenta caries dental', val(data,'caries')],
-        ['Presenta encia inflamada o sangra al cepillarse', val(data,'encia_inflamada')],
-        ['Dientes en mala posicion o chuecos', val(data,'dientes_chuecos')],
-        ['Seguridad social', arreglo('seguridad_social')],
-        ['Otro servicio de seguridad social', val(data,'seguridad_otro')]
-      ]);
-
-      agregar('ESTADO GENERAL DE SALUD', [
-        ['Grupo sanguineo', val(data,'grupo_sanguineo')],
-        ['Agudeza auditiva ojo/oido izquierdo', val(data,'auditiva_izq')],
-        ['Agudeza auditiva ojo/oido derecho', val(data,'auditiva_der')],
-        ['Usa aparato auxiliar auditivo - oido izquierdo', val(data,'aparato_izq')],
-        ['Usa aparato auxiliar auditivo - oido derecho', val(data,'aparato_der')],
-        ['Problema postural observado', val(data,'problema_postural')],
-        ['Utiliza aparato ortopedico', val(data,'aparato_ortopedico')]
-      ]);
-
-      agregar('ANTECEDENTES FARMACOLOGICOS', [
-        ['Alergia a algun medicamento', val(data,'alergia_medicamento')],
-        ['Cual medicamento', val(data,'cual_alergia_medicamento')],
-        ['Alergia o intolerancia a algun alimento', val(data,'alergia_alimento')],
-        ['Cual alimento', val(data,'cual_alergia_alimento')],
-        ['Usa medicamento permanente', val(data,'medicamento_permanente')],
-        ['Cual medicamento permanente', val(data,'cual_medicamento_permanente')]
-      ]);
-
-      agregar('ENFERMEDADES CRONICAS', enfermedades.map((enf, idx)=>[enf, val(data,'enfermedad_'+idx)]));
-
-      agregar('HISTORIAL SOCIOFAMILIAR', [
-        ['Personas que viven con el alumno', arreglo('vive_con')],
-        ['Personas con quienes pasa la mayor parte del tiempo', arreglo('pasa_tiempo')],
-        ['Numero de hermanos', val(data,'numero_hermanos')],
-        ['Lugar que ocupa entre los hermanos', val(data,'lugar_hermanos')],
-        ['Actividad a la que dedica mas tiempo durante el dia', arreglo('actividad_tiempo')],
-        ['Otra actividad', val(data,'otra_actividad')]
-      ]);
-
-      agregar('DATOS DE CAPTURA', [
-        ['Fecha de captura', val(data,'fecha_captura')]
-      ]);
-
-      return secciones;
-    }
-
-    function crearPDFBasico(data){
-      const ancho = 612;
-      const alto = 792;
-      const margenX = 42;
-      const margenSuperior = 56;
-      const margenInferior = 44;
-      const salto = 14;
-      let y = alto - margenSuperior;
-      let paginaActual = '';
-      const paginas = [];
-
-      function comandoTexto(texto, x, yPos, size=10, fuente='F1'){
-        return `BT /${fuente} ${size} Tf ${x} ${yPos} Td (${escaparPDF(texto)}) Tj ET\n`;
-      }
-
-      function nuevaPagina(){
-        if(paginaActual) paginas.push(paginaActual);
-        paginaActual = '';
-        y = alto - margenSuperior;
-        paginaActual += '0.607 0.043 0.310 rg\n';
-        paginaActual += comandoTexto('SECRETARIA DE EDUCACION DE VERACRUZ', margenX, y, 12, 'F2');
-        y -= 16;
-        paginaActual += comandoTexto('EXPEDIENTE DIGITAL DE SALUD ESCOLAR VERACRUZ - NIVEL SECUNDARIA', margenX, y, 10, 'F2');
-        y -= 20;
-        paginaActual += '0 0 0 rg\n';
-      }
-
-      function asegurarEspacio(lineas=1){
-        if(y - (lineas * salto) < margenInferior){
-          nuevaPagina();
-        }
-      }
-
-      function agregarTitulo(titulo){
-        asegurarEspacio(3);
-        y -= 4;
-        paginaActual += '0.607 0.043 0.310 rg\n';
-        paginaActual += comandoTexto(titulo, margenX, y, 11, 'F2');
-        paginaActual += '0 0 0 rg\n';
-        y -= 16;
-      }
-
-      function agregarFila(etiqueta, valor){
-        const texto = `${etiqueta}: ${valor || ''}`;
-        const lineas = cortarLineas(texto, 88);
-        asegurarEspacio(lineas.length);
-        lineas.forEach((linea, idx)=>{
-          paginaActual += comandoTexto(linea, margenX + (idx ? 14 : 0), y, 9.5, 'F1');
-          y -= salto;
-        });
-      }
-
-      nuevaPagina();
-      contenidoTextoPDF(data).forEach(seccion=>{
-        agregarTitulo(seccion.titulo);
-        seccion.filas.forEach(([etiqueta, valor])=>agregarFila(etiqueta, valor));
-        y -= 5;
-      });
-      paginas.push(paginaActual);
-
-      const objetos = [];
-      function obj(contenido){ objetos.push(contenido); return objetos.length; }
-
-      const catalogoId = obj('');
-      const paginasId = obj('');
-      const fuenteId = obj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-      const fuenteBoldId = obj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-      const pageIds = [];
-
-      paginas.forEach(stream=>{
-        const streamSeguro = stream.replace(/[^\x00-\xff]/g,'?');
-        const contenidoId = obj(`<< /Length ${streamSeguro.length} >>\nstream\n${streamSeguro}endstream`);
-        const pageId = obj(`<< /Type /Page /Parent ${paginasId} 0 R /MediaBox [0 0 ${ancho} ${alto}] /Resources << /Font << /F1 ${fuenteId} 0 R /F2 ${fuenteBoldId} 0 R >> >> /Contents ${contenidoId} 0 R >>`);
-        pageIds.push(pageId);
-      });
-
-      objetos[catalogoId-1] = `<< /Type /Catalog /Pages ${paginasId} 0 R >>`;
-      objetos[paginasId-1] = `<< /Type /Pages /Kids [${pageIds.map(id=>id+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;
-
-      let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-      const offsets = [0];
-      objetos.forEach((contenido, idx)=>{
-        offsets[idx+1] = pdf.length;
-        pdf += `${idx+1} 0 obj\n${contenido}\nendobj\n`;
-      });
-      const xref = pdf.length;
-      pdf += `xref\n0 ${objetos.length+1}\n0000000000 65535 f \n`;
-      for(let i=1;i<=objetos.length;i++){
-        pdf += String(offsets[i]).padStart(10,'0') + ' 00000 n \n';
-      }
-      pdf += `trailer\n<< /Size ${objetos.length+1} /Root ${catalogoId} 0 R >>\nstartxref\n${xref}\n%%EOF`;
-
-      const bytes = new Uint8Array(pdf.length);
-      for(let i=0;i<pdf.length;i++) bytes[i] = pdf.charCodeAt(i) & 255;
-      return bytes;
-    }
-
-    function descargarPDFBasico(data){
-      const bytes = crearPDFBasico(data);
-      const blob = new Blob([bytes], {type:'application/pdf'});
-      const url = URL.createObjectURL(blob);
-      const apellidos = `${val(data,'primer_apellido')}_${val(data,'segundo_apellido')}`.replace(/\s+/g,'_').replace(/[^A-Za-z0-9_\-]/g,'');
-      const nombreArchivo = `EDSEV_${apellidos || val(data,'curp') || 'alumno'}.pdf`;
-      const enlace = document.createElement('a');
-      enlace.href = url;
-      enlace.download = nombreArchivo;
-      document.body.appendChild(enlace);
-      enlace.click();
-      enlace.remove();
-      setTimeout(()=>URL.revokeObjectURL(url), 1500);
-    }
-
-    async function generarPDF(data){
-      descargarPDFBasico(data);
+    function mostrarMensajeGracias(){
+      ocultarAviso();
+      pages.forEach(p=>p.style.display='none');
+      document.querySelector('.acciones').style.display='none';
+      const mensaje = document.getElementById('mensajeExito');
+      if(mensaje) mensaje.style.display='block';
+      nombreSeccion.textContent = 'Envío terminado';
+      contador.textContent = 'Completado';
+      progressFill.style.width = '100%';
+      window.scrollTo({top:0, behavior:'smooth'});
     }
 
     btnAnterior.addEventListener('click',()=>irA(actual-1));
@@ -1120,11 +877,13 @@
       const data = datosFormulario();
       btnEnviar.disabled = true;
       btnEnviar.textContent = 'ENVIANDO...';
-      await enviarDatosExcel(data);
-      btnEnviar.textContent = 'GENERANDO PDF...';
-      await generarPDF(data);
-      btnEnviar.disabled = false;
-      btnEnviar.textContent = 'ENVIAR';
+      const enviado = await enviarDatosExcel(data);
+      if(enviado){
+        mostrarMensajeGracias();
+      }else{
+        btnEnviar.disabled = false;
+        btnEnviar.textContent = 'ENVIAR';
+      }
     });
 
     form.addEventListener('input', e=>{
