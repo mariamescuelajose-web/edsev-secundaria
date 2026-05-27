@@ -838,19 +838,78 @@
     }
 
     async function enviarDatosExcel(data){
-      try{
-        await fetch(URL_APPS_SCRIPT, {
-          method:'POST',
-          mode:'no-cors',
-          headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body:JSON.stringify(data)
-        });
-        return true;
-      }catch(err){
-        console.warn('No se pudieron enviar los datos a Google Sheets:', err);
-        mostrarAviso('No se pudieron enviar los datos a Google Sheets. Revise la conexión a internet o la URL del Apps Script y vuelva a intentar.');
-        return false;
-      }
+      return new Promise((resolve)=>{
+        if(!URL_APPS_SCRIPT){
+          mostrarAviso('Falta colocar la URL del Apps Script.');
+          resolve(false);
+          return;
+        }
+
+        const token = String(Date.now()) + '_' + Math.random().toString(36).slice(2);
+        data._token = token;
+
+        const iframeName = 'iframe_envio_edsev';
+        let iframe = document.getElementById(iframeName);
+        if(!iframe){
+          iframe = document.createElement('iframe');
+          iframe.name = iframeName;
+          iframe.id = iframeName;
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+        }
+
+        const formEnvio = document.createElement('form');
+        formEnvio.method = 'POST';
+        formEnvio.action = URL_APPS_SCRIPT;
+        formEnvio.target = iframeName;
+        formEnvio.style.display = 'none';
+
+        const inputPayload = document.createElement('input');
+        inputPayload.type = 'hidden';
+        inputPayload.name = 'payload';
+        inputPayload.value = JSON.stringify(data);
+        formEnvio.appendChild(inputPayload);
+        document.body.appendChild(formEnvio);
+
+        let terminado = false;
+
+        function limpiar(){
+          window.removeEventListener('message', recibirRespuesta);
+          if(formEnvio && formEnvio.parentNode) formEnvio.parentNode.removeChild(formEnvio);
+        }
+
+        function recibirRespuesta(event){
+          const respuesta = event.data || {};
+          if(!respuesta || respuesta.origen !== 'EDSEV_RECEPTOR' || respuesta.token !== token) return;
+          terminado = true;
+          limpiar();
+          if(respuesta.ok){
+            resolve(true);
+          }else{
+            console.error('Error reportado por Apps Script:', respuesta.mensaje);
+            mostrarAviso('No se guardaron los datos en Google Sheets: ' + (respuesta.mensaje || 'error desconocido'));
+            resolve(false);
+          }
+        }
+
+        window.addEventListener('message', recibirRespuesta);
+
+        setTimeout(()=>{
+          if(terminado) return;
+          limpiar();
+          mostrarAviso('No se confirmó el guardado en Google Sheets. Revise la implementación del Apps Script y vuelva a intentar.');
+          resolve(false);
+        }, 25000);
+
+        try{
+          formEnvio.submit();
+        }catch(err){
+          limpiar();
+          console.error('No se pudo enviar el formulario a Apps Script:', err);
+          mostrarAviso('No se pudo enviar la información. Revise la conexión a internet o la URL del Apps Script.');
+          resolve(false);
+        }
+      });
     }
 
     function mostrarMensajeGracias(){
