@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EDSEV Secundaria | Expediente Digital de Salud Escolar</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRM2qxYiy0R0DX0tvT5yGltj1R4sLDUacN2Kw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
     :root{
       --vino:#9b0b4f;
@@ -596,18 +595,18 @@
         <div class="acciones">
           <button type="button" class="btn btn-claro" id="btnAnterior">← Anterior</button>
           <button type="button" class="btn btn-vino" id="btnSiguiente">Siguiente →</button>
-          <button type="button" class="btn btn-verde" id="btnEnviar" style="display:none;">Enviar y generar PDF</button>
+          <button type="button" class="btn btn-verde" id="btnEnviar" style="display:none;">ENVIAR</button>
         </div>
       </form>
     </main>
 
     <footer>
-      Formulario digital basado en el formato EDSEV Secundaria. Al enviar, se genera un PDF únicamente con la información capturada; la conexión con Excel en línea queda preparada para agregar posteriormente el enlace de Google Apps Script.
+      Formulario digital basado en el formato EDSEV Secundaria. Al presionar ENVIAR, la información capturada se manda a Google Sheets mediante Google Apps Script y después se genera un PDF únicamente con los datos del formulario.
     </footer>
   </div>
 
   <script>
-    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbytznfPwa3ciUoFxiOlKaccMpyUz-_9J6lhQCCMlvKekFccba7BxldKNjvWEA6uxL5gGQ/exec"; // Más adelante pegue aquí la URL del Web App de Google Apps Script para enviar los datos a Excel/Sheets.
+    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbytznfPwa3ciUoFxiOlKaccMpyUz-_9J6lhQCCMlvKekFccba7BxldKNjvWEA6uxL5gGQ/exec"; // PEGUE AQUÍ LA URL DEL WEB APP DE GOOGLE APPS SCRIPT. Ejemplo: https://script.google.com/macros/s/AKfycb.../exec
 
     const pages = [...document.querySelectorAll('.page')];
     const nombreSeccion = document.getElementById('nombreSeccion');
@@ -792,18 +791,21 @@
 
     async function enviarDatosExcel(data){
       if(!URL_APPS_SCRIPT){
-        console.log('Datos listos para enviar a Excel/Sheets cuando se configure URL_APPS_SCRIPT:', data);
-        return;
+        console.log('Datos listos para enviar a Google Sheets cuando se configure URL_APPS_SCRIPT:', data);
+        return true;
       }
       try{
         await fetch(URL_APPS_SCRIPT, {
           method:'POST',
           mode:'no-cors',
-          headers:{'Content-Type':'application/json'},
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
           body:JSON.stringify(data)
         });
+        return true;
       }catch(err){
-        console.warn('No se pudieron enviar los datos a Excel/Sheets:', err);
+        console.warn('No se pudieron enviar los datos a Google Sheets:', err);
+        alert('No se pudieron enviar los datos a Google Sheets. Revise su conexión o la URL del Apps Script. Aun así se generará el PDF.');
+        return false;
       }
     }
 
@@ -865,170 +867,245 @@
       return y+13;
     }
 
-    async function generarPDF(data){
-      if(!window.jspdf){
-        alert('No cargó la librería jsPDF. Revise la conexión a internet y vuelva a intentar.');
-        return;
+    function limpiarTextoPDF(texto){
+      return String(texto || '')
+        .replace(/\s+/g,' ')
+        .replace(/[“”]/g,'"')
+        .replace(/[‘’]/g,"'")
+        .replace(/[–—]/g,'-')
+        .trim();
+    }
+
+    function escaparPDF(texto){
+      return limpiarTextoPDF(texto)
+        .replace(/[^\x00-\xff]/g,'?')
+        .replace(/\\/g,'\\\\')
+        .replace(/\(/g,'\\(')
+        .replace(/\)/g,'\\)');
+    }
+
+    function cortarLineas(texto, maxChars){
+      const palabras = limpiarTextoPDF(texto).split(' ').filter(Boolean);
+      const lineas = [];
+      let linea = '';
+      palabras.forEach(palabra=>{
+        if((linea + ' ' + palabra).trim().length > maxChars){
+          if(linea) lineas.push(linea);
+          linea = palabra;
+        }else{
+          linea = (linea + ' ' + palabra).trim();
+        }
+      });
+      if(linea) lineas.push(linea);
+      return lineas.length ? lineas : [''];
+    }
+
+    function contenidoTextoPDF(data){
+      const secciones = [];
+      const agregar = (titulo, filas)=>secciones.push({titulo, filas});
+      const arreglo = (key)=>Array.isArray(data[key]) ? data[key].join(', ') : (data[key] || '');
+
+      agregar('IDENTIFICACION DE LA ALUMNA O ALUMNO', [
+        ['Primer apellido', val(data,'primer_apellido')],
+        ['Segundo apellido', val(data,'segundo_apellido')],
+        ['Nombre(s)', val(data,'nombres_alumno')],
+        ['CURP', val(data,'curp')],
+        ['Sexo', val(data,'sexo')],
+        ['Fecha de nacimiento', val(data,'fecha_nacimiento')],
+        ['Edad', val(data,'edad')],
+        ['Grado', val(data,'grado')],
+        ['Grupo', val(data,'grupo')]
+      ]);
+
+      agregar('DATOS DE LA ESCUELA', [
+        ['Clave de la escuela', val(data,'clave_escuela')],
+        ['Nombre de la escuela', val(data,'nombre_escuela')],
+        ['Turno', val(data,'turno')],
+        ['Entidad Federativa', val(data,'entidad')],
+        ['Municipio', val(data,'municipio')],
+        ['Localidad', val(data,'localidad')]
+      ]);
+
+      agregar('DATOS DEL PADRE, MADRE O TUTOR', [
+        ['Primer apellido', val(data,'tutor_primer_apellido')],
+        ['Segundo apellido', val(data,'tutor_segundo_apellido')],
+        ['Nombre(s)', val(data,'tutor_nombres')],
+        ['Relacion con el menor', val(data,'relacion_tutor')],
+        ['Telefono/celular', val(data,'telefono_tutor')],
+        ['Correo electronico', val(data,'correo_tutor')]
+      ]);
+
+      agregar('DATOS FISICOS Y AGUDEZA VISUAL', [
+        ['Peso', val(data,'peso') + ' kg'],
+        ['Talla', val(data,'talla') + ' cm'],
+        ['Medida de cintura', val(data,'cintura') + ' cm'],
+        ['Medida de cadera', val(data,'cadera') + ' cm'],
+        ['Usa lentes', val(data,'usa_lentes')],
+        ['Ojo izquierdo', val(data,'ojo_izquierdo')],
+        ['Ojo derecho', val(data,'ojo_derecho')]
+      ]);
+
+      agregar('SALUD BUCAL Y SEGURIDAD SOCIAL', [
+        ['Conoce tecnica de cepillado dental', val(data,'tecnica_cepillado')],
+        ['Aplica barniz o gel de fluor', val(data,'fluor')],
+        ['Presenta caries dental', val(data,'caries')],
+        ['Presenta encia inflamada o sangra al cepillarse', val(data,'encia_inflamada')],
+        ['Dientes en mala posicion o chuecos', val(data,'dientes_chuecos')],
+        ['Seguridad social', arreglo('seguridad_social')],
+        ['Otro servicio de seguridad social', val(data,'seguridad_otro')]
+      ]);
+
+      agregar('ESTADO GENERAL DE SALUD', [
+        ['Grupo sanguineo', val(data,'grupo_sanguineo')],
+        ['Agudeza auditiva ojo/oido izquierdo', val(data,'auditiva_izq')],
+        ['Agudeza auditiva ojo/oido derecho', val(data,'auditiva_der')],
+        ['Usa aparato auxiliar auditivo - oido izquierdo', val(data,'aparato_izq')],
+        ['Usa aparato auxiliar auditivo - oido derecho', val(data,'aparato_der')],
+        ['Problema postural observado', val(data,'problema_postural')],
+        ['Utiliza aparato ortopedico', val(data,'aparato_ortopedico')]
+      ]);
+
+      agregar('ANTECEDENTES FARMACOLOGICOS', [
+        ['Alergia a algun medicamento', val(data,'alergia_medicamento')],
+        ['Cual medicamento', val(data,'cual_alergia_medicamento')],
+        ['Alergia o intolerancia a algun alimento', val(data,'alergia_alimento')],
+        ['Cual alimento', val(data,'cual_alergia_alimento')],
+        ['Usa medicamento permanente', val(data,'medicamento_permanente')],
+        ['Cual medicamento permanente', val(data,'cual_medicamento_permanente')]
+      ]);
+
+      agregar('ENFERMEDADES CRONICAS', enfermedades.map((enf, idx)=>[enf, val(data,'enfermedad_'+idx)]));
+
+      agregar('HISTORIAL SOCIOFAMILIAR', [
+        ['Personas que viven con el alumno', arreglo('vive_con')],
+        ['Personas con quienes pasa la mayor parte del tiempo', arreglo('pasa_tiempo')],
+        ['Numero de hermanos', val(data,'numero_hermanos')],
+        ['Lugar que ocupa entre los hermanos', val(data,'lugar_hermanos')],
+        ['Actividad a la que dedica mas tiempo durante el dia', arreglo('actividad_tiempo')],
+        ['Otra actividad', val(data,'otra_actividad')]
+      ]);
+
+      agregar('DATOS DE CAPTURA', [
+        ['Fecha de captura', val(data,'fecha_captura')]
+      ]);
+
+      return secciones;
+    }
+
+    function crearPDFBasico(data){
+      const ancho = 612;
+      const alto = 792;
+      const margenX = 42;
+      const margenSuperior = 56;
+      const margenInferior = 44;
+      const salto = 14;
+      let y = alto - margenSuperior;
+      let paginaActual = '';
+      const paginas = [];
+
+      function comandoTexto(texto, x, yPos, size=10, fuente='F1'){
+        return `BT /${fuente} ${size} Tf ${x} ${yPos} Td (${escaparPDF(texto)}) Tj ET\n`;
       }
 
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'letter'});
-      const logoUrls = [
-        'https://bunny-wp-pullzone-igwhdjali4.b-cdn.net/wp-content/uploads/2019/09/Escudo-heraldico-01-e1569435071390.png',
-        'https://empleadodigital.sev.gob.mx/assets/icon/sev-logo.png',
-        'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhvTlQsqPV_9F2hUQbLB6H3Q_NC9F0as-Y4K52j7P8ODmJBP0Ym2NdMnsNYNKYsJ8lO4DHcqfcTrsL_l7b_pxgy2AZoPpO9dce8Tumm1asFfAbik953mwQxVT8vAJ3uXnKwFdeRSuQpXPz8l2ulSk2tJzw9NlW_xW_1_WiC_2fDA93FSIa-1uZXvWJQlg/s1248/edsev0.jpg'
-      ];
-      const imgs = await Promise.all(logoUrls.map(loadImageAsDataURL));
+      function nuevaPagina(){
+        if(paginaActual) paginas.push(paginaActual);
+        paginaActual = '';
+        y = alto - margenSuperior;
+        paginaActual += '0.607 0.043 0.310 rg\n';
+        paginaActual += comandoTexto('SECRETARIA DE EDUCACION DE VERACRUZ', margenX, y, 12, 'F2');
+        y -= 16;
+        paginaActual += comandoTexto('EXPEDIENTE DIGITAL DE SALUD ESCOLAR VERACRUZ - NIVEL SECUNDARIA', margenX, y, 10, 'F2');
+        y -= 20;
+        paginaActual += '0 0 0 rg\n';
+      }
 
-      doc.setProperties({title:'EDSEV Secundaria', subject:'Expediente Digital de Salud Escolar Veracruz'});
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(8.5);
+      function asegurarEspacio(lineas=1){
+        if(y - (lineas * salto) < margenInferior){
+          nuevaPagina();
+        }
+      }
 
-      encabezadoPDF(doc, imgs);
-      let y = 52;
-      y = barra(doc, 'IDENTIFICACIÓN DE LA ALUMNA O ALUMNO', y);
-      textoLinea(doc, 'Primer apellido:', val(data,'primer_apellido'), 15, y, 55);
-      textoLinea(doc, 'Segundo apellido:', val(data,'segundo_apellido'), 75, y, 55);
-      textoLinea(doc, 'Nombre(s):', val(data,'nombres_alumno'), 135, y, 66);
-      y += 8;
-      textoLinea(doc, 'CURP:', val(data,'curp'), 15, y, 82);
-      doc.text(`Sexo: ${opcion(data,'sexo','Masculino')} Masculino   ${opcion(data,'sexo','Femenino')} Femenino`, 105, y);
-      y += 8;
-      textoLinea(doc, 'Fecha de nacimiento:', val(data,'fecha_nacimiento'), 15, y, 62);
-      textoLinea(doc, 'Edad:', val(data,'edad'), 82, y, 30);
-      textoLinea(doc, 'Grado:', val(data,'grado'), 118, y, 30);
-      textoLinea(doc, 'Grupo:', val(data,'grupo'), 154, y, 35);
+      function agregarTitulo(titulo){
+        asegurarEspacio(3);
+        y -= 4;
+        paginaActual += '0.607 0.043 0.310 rg\n';
+        paginaActual += comandoTexto(titulo, margenX, y, 11, 'F2');
+        paginaActual += '0 0 0 rg\n';
+        y -= 16;
+      }
 
-      y += 9;
-      y = barra(doc, 'DATOS DE LA ESCUELA', y);
-      textoLinea(doc, 'Clave de la escuela:', val(data,'clave_escuela'), 15, y, 78);
-      textoLinea(doc, 'Nombre:', val(data,'nombre_escuela'), 98, y, 103);
-      y += 8;
-      textoLinea(doc, 'Turno:', val(data,'turno'), 15, y, 55);
-      textoLinea(doc, 'Entidad federativa:', val(data,'entidad'), 75, y, 55);
-      textoLinea(doc, 'Municipio:', val(data,'municipio'), 135, y, 66);
-      y += 8;
-      textoLinea(doc, 'Localidad:', val(data,'localidad'), 15, y, 186);
+      function agregarFila(etiqueta, valor){
+        const texto = `${etiqueta}: ${valor || ''}`;
+        const lineas = cortarLineas(texto, 88);
+        asegurarEspacio(lineas.length);
+        lineas.forEach((linea, idx)=>{
+          paginaActual += comandoTexto(linea, margenX + (idx ? 14 : 0), y, 9.5, 'F1');
+          y -= salto;
+        });
+      }
 
-      y += 9;
-      y = barra(doc, 'DATOS DEL PADRE, MADRE O TUTOR', y);
-      textoLinea(doc, 'Primer apellido:', val(data,'tutor_primer_apellido'), 15, y, 55);
-      textoLinea(doc, 'Segundo apellido:', val(data,'tutor_segundo_apellido'), 75, y, 55);
-      textoLinea(doc, 'Nombre(s):', val(data,'tutor_nombres'), 135, y, 66);
-      y += 8;
-      textoLinea(doc, 'Relación con el menor:', val(data,'relacion_tutor'), 15, y, 65);
-      textoLinea(doc, 'Teléfono/celular:', val(data,'telefono_tutor'), 85, y, 48);
-      textoLinea(doc, 'Correo electrónico:', val(data,'correo_tutor'), 137, y, 64);
-
-      y += 9;
-      y = barra(doc, 'DATOS DE LA ALUMNA O ALUMNO', y);
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Peso y talla', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 7;
-      textoLinea(doc, 'Peso:', `${val(data,'peso')} kg`, 15, y, 45);
-      textoLinea(doc, 'Talla:', `${val(data,'talla')} cm`, 63, y, 45);
-      textoLinea(doc, 'Medida de cintura:', `${val(data,'cintura')} cm`, 111, y, 45);
-      textoLinea(doc, 'Medida de cadera:', `${val(data,'cadera')} cm`, 159, y, 42);
-      y += 9;
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Agudeza visual', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 7;
-      doc.text(`¿Usa lentes? ${opcion(data,'usa_lentes','No')} No   ${opcion(data,'usa_lentes','Sí')} Sí`, 15, y);
-      textoLinea(doc, 'Ojo izquierdo:', val(data,'ojo_izquierdo'), 76, y, 48);
-      textoLinea(doc, 'Ojo derecho:', val(data,'ojo_derecho'), 130, y, 48);
-      doc.setFontSize(7.3); doc.text('Escala: excelente=8, buena=7, regular=6, mala=5.', 15, y+6); doc.setFontSize(8.5);
-
-      y += 18;
-      doc.setFillColor(233,238,238); doc.rect(15, y-4, 186, 35, 'F');
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Salud bucal', 108, y+1, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 8;
-      doc.text(`Técnica de cepillado dental: ${opcion(data,'tecnica_cepillado','No')} No  ${opcion(data,'tecnica_cepillado','Sí')} Sí`, 18, y);
-      doc.text(`Aplica barniz o gel de flúor: ${opcion(data,'fluor','No')} No  ${opcion(data,'fluor','Sí')} Sí`, 78, y);
-      doc.text(`Presenta caries dental: ${opcion(data,'caries','No')} No  ${opcion(data,'caries','Sí')} Sí`, 145, y);
-      y += 8;
-      doc.text(`Encía inflamada o sangra al cepillarse: ${opcion(data,'encia_inflamada','No')} No  ${opcion(data,'encia_inflamada','Sí')} Sí`, 18, y);
-      doc.text(`Dientes en mala posición o chuecos: ${opcion(data,'dientes_chuecos','No')} No  ${opcion(data,'dientes_chuecos','Sí')} Sí`, 105, y);
-      y += 13;
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Seguridad social', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 7;
-      doc.text(`Seguridad social: ${val(data,'seguridad_social') || 'No especificado'}  ${val(data,'seguridad_otro') ? 'Otro: '+val(data,'seguridad_otro') : ''}`, 15, y);
-      doc.setFontSize(8); doc.text('1', 108, 270, {align:'center'}); doc.setFontSize(8.5);
-
-      doc.addPage('letter','portrait');
-      encabezadoPDF(doc, imgs);
-      y = 52;
-      y = barra(doc, 'ESTADO GENERAL DE SALUD', y);
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Tipo de sangre', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 8;
-      ['O+','O-','A+','A-','B+','B-','AB+','AB-'].forEach((g,i)=>marcar(doc, 38+i*18, y, g, val(data,'grupo_sanguineo')===g));
-      y += 16;
-      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 33, 'F');
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Agudeza auditiva', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 9;
-      doc.text(`Oído izquierdo: ${opcion(data,'auditiva_izq','TA')} TA   ${opcion(data,'auditiva_izq','TO')} TO`, 35, y);
-      doc.text(`Oído derecho: ${opcion(data,'auditiva_der','TA')} TA   ${opcion(data,'auditiva_der','TO')} TO`, 112, y);
-      y += 9;
-      doc.text(`Uso aparato auxiliar auditivo - Izquierdo: ${opcion(data,'aparato_izq','No')} NO   ${opcion(data,'aparato_izq','Sí')} Sí`, 28, y);
-      doc.text(`Derecho: ${opcion(data,'aparato_der','No')} NO   ${opcion(data,'aparato_der','Sí')} Sí`, 132, y);
-      y += 17;
-      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 25, 'F');
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Problemas Posturales', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 9;
-      doc.text(`¿Se observa algún problema postural? ${opcion(data,'problema_postural','No')} NO   ${opcion(data,'problema_postural','Sí')} Sí`, 25, y);
-      y += 7;
-      doc.text(`¿Utiliza algún aparato ortopédico? ${opcion(data,'aparato_ortopedico','No')} NO   ${opcion(data,'aparato_ortopedico','Sí')} Sí`, 25, y);
-
-      y += 17;
-      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 33, 'F');
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Antecedentes farmacológicos', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 9;
-      doc.text(`Alergia a algún medicamento: ${opcion(data,'alergia_medicamento','No')} NO  ${opcion(data,'alergia_medicamento','Sí')} Sí   Cuál: ${val(data,'cual_alergia_medicamento')}`, 22, y);
-      y += 7;
-      doc.text(`Alergia o intolerancia a algún alimento: ${opcion(data,'alergia_alimento','No')} NO  ${opcion(data,'alergia_alimento','Sí')} Sí   Cuál: ${val(data,'cual_alergia_alimento')}`, 22, y);
-      y += 7;
-      doc.text(`Usa algún medicamento permanente: ${opcion(data,'medicamento_permanente','No')} NO  ${opcion(data,'medicamento_permanente','Sí')} Sí   Cuál: ${val(data,'cual_medicamento_permanente')}`, 22, y);
-
-      y += 18;
-      doc.setFillColor(233,238,238); doc.rect(15, y-6, 186, 74, 'F');
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.text('Enfermedades crónicas', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
-      y += 8;
-      enfermedades.forEach((enf, idx)=>{
-        const col = idx < 8 ? 20 : 110;
-        const rowY = y + (idx % 8) * 7;
-        const value = val(data, 'enfermedad_'+idx);
-        doc.text(`${enf.substring(0,38)} ${value==='No'?'☑':'☐'} NO ${value==='Sí'?'☑':'☐'} Sí`, col, rowY);
+      nuevaPagina();
+      contenidoTextoPDF(data).forEach(seccion=>{
+        agregarTitulo(seccion.titulo);
+        seccion.filas.forEach(([etiqueta, valor])=>agregarFila(etiqueta, valor));
+        y -= 5;
       });
-      y += 70;
-      doc.setFontSize(8); doc.text('2', 108, 270, {align:'center'}); doc.setFontSize(8.5);
+      paginas.push(paginaActual);
 
-      doc.addPage('letter','portrait');
-      encabezadoPDF(doc, imgs);
-      y = 52;
-      doc.setFillColor(233,238,238); doc.rect(15, y-8, 186, 92, 'F');
-      doc.setFont('helvetica','bold'); doc.setTextColor(155,11,79); doc.setFontSize(11); doc.text('Historial sociofamiliar', 108, y, {align:'center'}); doc.setTextColor(0,0,0); doc.setFontSize(8.5); doc.setFont('helvetica','normal');
-      y += 12;
-      doc.setFont('helvetica','bold'); doc.text('Personas que viven con el alumno:', 20, y); doc.setFont('helvetica','normal'); y += 8;
-      ['Solo padre','Solo madre','Ambos padres','Padres / otras personas','Vive solo'].forEach((o,i)=>marcar(doc, 22+i*35, y, o, (Array.isArray(data.vive_con)?data.vive_con:[]).includes(o)));
-      y += 17;
-      doc.setFont('helvetica','bold'); doc.text('Personas con quienes pasa la mayor parte del tiempo:', 20, y); doc.setFont('helvetica','normal'); y += 8;
-      ['Solo padre','Solo madre','Ambos padres','Padres / otras personas'].forEach((o,i)=>marcar(doc, 22+i*40, y, o, (Array.isArray(data.pasa_tiempo)?data.pasa_tiempo:[]).includes(o)));
-      y += 17;
-      doc.setFont('helvetica','bold'); doc.text('Hermanos con los que cuenta el alumno:', 20, y); doc.setFont('helvetica','normal'); y += 8;
-      textoLinea(doc, 'Número de hermanos:', val(data,'numero_hermanos'), 50, y, 42);
-      textoLinea(doc, 'Lugar que ocupa entre hermanos:', val(data,'lugar_hermanos'), 106, y, 52);
-      y += 17;
-      doc.setFont('helvetica','bold'); doc.text('Actividad a la que le dedica más tiempo durante el día:', 20, y); doc.setFont('helvetica','normal'); y += 8;
-      const acts = ['Jugar','Hacer algún deporte','Hacer tarea','Utilizar algún aparato electrónico','Salir con amigos','Salir con la familia','Trabajar','Hacer tareas domésticas','Otra'];
-      acts.forEach((o,i)=>{
-        const x = 22 + (i%4)*45;
-        const yy = y + Math.floor(i/4)*9;
-        marcar(doc, x, yy, o.substring(0,34), (Array.isArray(data.actividad_tiempo)?data.actividad_tiempo:[]).includes(o));
+      const objetos = [];
+      function obj(contenido){ objetos.push(contenido); return objetos.length; }
+
+      const catalogoId = obj('');
+      const paginasId = obj('');
+      const fuenteId = obj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+      const fuenteBoldId = obj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+      const pageIds = [];
+
+      paginas.forEach(stream=>{
+        const streamSeguro = stream.replace(/[^\x00-\xff]/g,'?');
+        const contenidoId = obj(`<< /Length ${streamSeguro.length} >>\nstream\n${streamSeguro}endstream`);
+        const pageId = obj(`<< /Type /Page /Parent ${paginasId} 0 R /MediaBox [0 0 ${ancho} ${alto}] /Resources << /Font << /F1 ${fuenteId} 0 R /F2 ${fuenteBoldId} 0 R >> >> /Contents ${contenidoId} 0 R >>`);
+        pageIds.push(pageId);
       });
-      y += 25;
-      textoLinea(doc, 'Otra / cuál:', val(data,'otra_actividad'), 22, y, 80);
-      doc.setFontSize(8); doc.text('3', 108, 270, {align:'center'}); doc.setFontSize(8.5);
 
+      objetos[catalogoId-1] = `<< /Type /Catalog /Pages ${paginasId} 0 R >>`;
+      objetos[paginasId-1] = `<< /Type /Pages /Kids [${pageIds.map(id=>id+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;
+
+      let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+      const offsets = [0];
+      objetos.forEach((contenido, idx)=>{
+        offsets[idx+1] = pdf.length;
+        pdf += `${idx+1} 0 obj\n${contenido}\nendobj\n`;
+      });
+      const xref = pdf.length;
+      pdf += `xref\n0 ${objetos.length+1}\n0000000000 65535 f \n`;
+      for(let i=1;i<=objetos.length;i++){
+        pdf += String(offsets[i]).padStart(10,'0') + ' 00000 n \n';
+      }
+      pdf += `trailer\n<< /Size ${objetos.length+1} /Root ${catalogoId} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+
+      const bytes = new Uint8Array(pdf.length);
+      for(let i=0;i<pdf.length;i++) bytes[i] = pdf.charCodeAt(i) & 255;
+      return bytes;
+    }
+
+    function descargarPDFBasico(data){
+      const bytes = crearPDFBasico(data);
+      const blob = new Blob([bytes], {type:'application/pdf'});
+      const url = URL.createObjectURL(blob);
       const apellidos = `${val(data,'primer_apellido')}_${val(data,'segundo_apellido')}`.replace(/\s+/g,'_').replace(/[^A-Za-z0-9_\-]/g,'');
       const nombreArchivo = `EDSEV_${apellidos || val(data,'curp') || 'alumno'}.pdf`;
-      doc.save(nombreArchivo);
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    }
+
+    async function generarPDF(data){
+      descargarPDFBasico(data);
     }
 
     btnAnterior.addEventListener('click',()=>irA(actual-1));
@@ -1042,11 +1119,12 @@
       if(!validarTodo()) return;
       const data = datosFormulario();
       btnEnviar.disabled = true;
-      btnEnviar.textContent = 'Generando PDF...';
+      btnEnviar.textContent = 'ENVIANDO...';
       await enviarDatosExcel(data);
+      btnEnviar.textContent = 'GENERANDO PDF...';
       await generarPDF(data);
       btnEnviar.disabled = false;
-      btnEnviar.textContent = 'Enviar y generar PDF';
+      btnEnviar.textContent = 'ENVIAR';
     });
 
     form.addEventListener('input', e=>{
