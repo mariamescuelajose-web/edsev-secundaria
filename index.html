@@ -411,7 +411,7 @@
         <div class="aviso-validacion" id="avisoValidacion"></div>
         <div class="mensaje-exito" id="mensajeExito" aria-live="polite">
           <h2>¡Gracias por la información capturada!</h2>
-          <p>El registro fue enviado para guardarse en la hoja de cálculo <strong>RECEPTOR EDSEV SECUNDARIA</strong>.</p>
+          <p>La información fue enviada a la hoja de cálculo <strong>RECEPTOR EDSEV SECUNDARIA</strong>. Revise la Hoja 1 para confirmar que apareció el nuevo registro.</p>
           <p>Puede cerrar esta página o actualizarla para capturar un nuevo expediente.</p>
         </div>
 
@@ -639,7 +639,8 @@
   </div>
 
   <script>
-    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwHBSh1Atqri6FnUQ5-hne7XM1pj66G2Ok8-UoiOK9_sGnXLxgpzGvgeg37lKO_SWrfQw/exec";
+    const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyXK36eX4VlTe2VcZyKkFh4opCEv_stuHgfcjxXBv-QNRjSSX6UkBK9fzEqKX6DKFhD/exec";
+    const VERSION_FORMULARIO = "EDSEV_SECUNDARIA_GITHUB_2026_05_27";
 
     const pages = [...document.querySelectorAll('.page')];
     const nombreSeccion = document.getElementById('nombreSeccion');
@@ -801,7 +802,10 @@
 
       const data = {
         archivo_destino: 'RECEPTOR EDSEV SECUNDARIA',
-        hoja_destino: 'Hoja 1'
+        hoja_destino: 'Hoja 1',
+        version_formulario: VERSION_FORMULARIO,
+        origen_pagina: window.location.href,
+        navegador: navigator.userAgent
       };
 
       const controles = [...form.querySelectorAll('input[name], select[name], textarea[name]')];
@@ -821,7 +825,9 @@
         }
       });
 
-      data.fecha_captura = new Date().toLocaleString('es-MX');
+      const ahora = new Date();
+      data.fecha_captura = ahora.toLocaleString('es-MX');
+      data.fecha_captura_iso = ahora.toISOString();
       return data;
     }
 
@@ -837,79 +843,71 @@
       return v === expected ? '☑' : '☐';
     }
 
-    async function enviarDatosExcel(data){
-      return new Promise((resolve)=>{
-        if(!URL_APPS_SCRIPT){
-          mostrarAviso('Falta colocar la URL del Apps Script.');
-          resolve(false);
-          return;
-        }
+    function enviarPorFormularioOculto(data){
+      return new Promise(resolve=>{
+        const iframeName = 'iframe_envio_edsev_' + Date.now();
+        const iframe = document.createElement('iframe');
+        iframe.name = iframeName;
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
 
-        const token = String(Date.now()) + '_' + Math.random().toString(36).slice(2);
-        data._token = token;
-
-        const iframeName = 'iframe_envio_edsev';
-        let iframe = document.getElementById(iframeName);
-        if(!iframe){
-          iframe = document.createElement('iframe');
-          iframe.name = iframeName;
-          iframe.id = iframeName;
-          iframe.style.display = 'none';
-          document.body.appendChild(iframe);
-        }
-
-        const formEnvio = document.createElement('form');
-        formEnvio.method = 'POST';
-        formEnvio.action = URL_APPS_SCRIPT;
-        formEnvio.target = iframeName;
-        formEnvio.style.display = 'none';
+        const formTemporal = document.createElement('form');
+        formTemporal.method = 'POST';
+        formTemporal.action = URL_APPS_SCRIPT;
+        formTemporal.target = iframeName;
+        formTemporal.style.display = 'none';
 
         const inputPayload = document.createElement('input');
         inputPayload.type = 'hidden';
         inputPayload.name = 'payload';
         inputPayload.value = JSON.stringify(data);
-        formEnvio.appendChild(inputPayload);
-        document.body.appendChild(formEnvio);
+        formTemporal.appendChild(inputPayload);
 
-        let terminado = false;
-
-        function limpiar(){
-          window.removeEventListener('message', recibirRespuesta);
-          if(formEnvio && formEnvio.parentNode) formEnvio.parentNode.removeChild(formEnvio);
-        }
-
-        function recibirRespuesta(event){
-          const respuesta = event.data || {};
-          if(!respuesta || respuesta.origen !== 'EDSEV_RECEPTOR' || respuesta.token !== token) return;
-          terminado = true;
-          limpiar();
-          if(respuesta.ok){
-            resolve(true);
-          }else{
-            console.error('Error reportado por Apps Script:', respuesta.mensaje);
-            mostrarAviso('No se guardaron los datos en Google Sheets: ' + (respuesta.mensaje || 'error desconocido'));
-            resolve(false);
-          }
-        }
-
-        window.addEventListener('message', recibirRespuesta);
+        document.body.appendChild(formTemporal);
+        formTemporal.submit();
 
         setTimeout(()=>{
-          if(terminado) return;
-          limpiar();
-          mostrarAviso('No se confirmó el guardado en Google Sheets. Revise la implementación del Apps Script y vuelva a intentar.');
-          resolve(false);
-        }, 25000);
-
-        try{
-          formEnvio.submit();
-        }catch(err){
-          limpiar();
-          console.error('No se pudo enviar el formulario a Apps Script:', err);
-          mostrarAviso('No se pudo enviar la información. Revise la conexión a internet o la URL del Apps Script.');
-          resolve(false);
-        }
+          formTemporal.remove();
+          iframe.remove();
+          resolve(true);
+        }, 1800);
       });
+    }
+
+    async function enviarDatosExcel(data){
+      if(!URL_APPS_SCRIPT || !URL_APPS_SCRIPT.includes('/exec')){
+        mostrarAviso('Falta colocar la URL final del Apps Script, debe terminar en /exec.');
+        return false;
+      }
+
+      try{
+        localStorage.setItem('ultimo_envio_edsev_secundaria', JSON.stringify(data));
+      }catch(e){
+        console.warn('No se pudo guardar respaldo local del último envío:', e);
+      }
+
+      try{
+        await fetch(URL_APPS_SCRIPT, {
+          method: 'POST',
+          mode: 'no-cors',
+          cache: 'no-store',
+          redirect: 'follow',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify(data)
+        });
+        return true;
+      }catch(err){
+        console.warn('Fetch no-cors falló; se intentará envío por formulario oculto:', err);
+        try{
+          return await enviarPorFormularioOculto(data);
+        }catch(err2){
+          console.error('No se pudo enviar la información a Google Sheets:', err2);
+          mostrarAviso('No se pudo enviar la información. Revise internet, la URL del Apps Script y que el despliegue esté publicado como aplicación web.');
+          return false;
+        }
+      }
     }
 
     function mostrarMensajeGracias(){
